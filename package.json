@@ -16,11 +16,25 @@
   "engines": {
     "vscode": "^1.90.0"
   },
+  "icon": "resources/icon.png",
   "categories": [
     "Data Science",
     "Machine Learning",
     "Other"
   ],
+  "keywords": [
+    "kaggle",
+    "jupyter",
+    "notebook",
+    "data science",
+    "machine learning",
+    "competitions",
+    "datasets"
+  ],
+  "galleryBanner": {
+    "color": "#0f172a",
+    "theme": "dark"
+  },
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {
