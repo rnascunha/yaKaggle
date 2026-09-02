@@ -262,11 +262,6 @@
       ],
       "view/item/context": [
         {
-          "command": "yaKaggle.pushKernel",
-          "when": "view == kaggle-kernels && viewItem == localKernel",
-          "group": "inline"
-        },
-        {
           "command": "yaKaggle.openInBrowser",
           "when": "viewItem =~ /^(localKernel|remoteKernel|dataset|competition)$/",
           "group": "inline"
@@ -350,6 +345,13 @@
           "command": "yaKaggle.openCompetitionBrowser",
           "when": "view == kaggle-competitions && viewItem == competitionItem",
           "group": "inline@3"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "yaKaggle.pushKernel",
+          "when": "resourceFilename =~ /kernel-metadata\\.json$/",
+          "group": "navigation"
         }
       ]
     }
