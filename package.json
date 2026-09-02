@@ -3,6 +3,15 @@
   "displayName": "yaKaggle",
   "description": "Seamless Kaggle Kernels, Datasets, and Competitions integration inside VS Code.",
   "version": "0.1.0",
+  "publisher": "rnascunha",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rnascunha/yaKaggle.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rnascunha/yaKaggle/issues"
+  },
+  "homepage": "https://github.com/rnascunha/yaKaggle#readme",
   "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
