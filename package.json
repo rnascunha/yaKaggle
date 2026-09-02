@@ -1,0 +1,351 @@
+{
+  "name": "yaKaggle",
+  "displayName": "yaKaggle",
+  "description": "Seamless Kaggle Kernels, Datasets, and Competitions integration inside VS Code.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Data Science",
+    "Machine Learning",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "yaKaggle",
+      "properties": {
+        "yaKaggle.kagglePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to the kaggle executable or python virtual environment directory. If empty, the extension will auto-detect from active virtual environments or system PATH."
+        },
+        "yaKaggle.kaggleConfigDir": {
+          "type": "string",
+          "default": "",
+          "description": "Custom directory containing kaggle.json. If empty, defaults to ~/.kaggle (or %USERPROFILE%\\.kaggle on Windows)."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "yaKaggle",
+          "title": "yaKaggle",
+          "icon": "resources/activitybar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "yaKaggle": [
+        {
+          "id": "kaggle-kernels",
+          "name": "Kernels / Notebooks",
+          "icon": "$(notebook-kernel-select)"
+        },
+        {
+          "id": "kaggle-datasets",
+          "name": "Datasets",
+          "icon": "$(database)"
+        },
+        {
+          "id": "kaggle-competitions",
+          "name": "Competitions",
+          "icon": "$(list-ordered)"
+        }
+      ]
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "**/kernel-metadata.json",
+        "url": "./schemas/kernel-metadata.schema.json"
+      },
+      {
+        "fileMatch": "**/dataset-metadata.json",
+        "url": "./schemas/dataset-metadata.schema.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "yaKaggle.refreshAll",
+        "title": "Refresh All",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "yaKaggle.pushKernel",
+        "title": "Push Kernel to Kaggle",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "yaKaggle.kernelStatus",
+        "title": "Check Running Status",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "yaKaggle.openInBrowser",
+        "title": "Open on Kaggle",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "yaKaggle.updateDataset",
+        "title": "Push New Version",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "yaKaggle.downloadDataset",
+        "title": "Download Dataset",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "yaKaggle.selectKaggleBinary",
+        "title": "yaKaggle: Select Kaggle Executable / Python Env",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "yaKaggle.setupCredentials",
+        "title": "yaKaggle: Setup / Import API Credentials (kaggle.json)",
+        "icon": "$(key)"
+      },
+      {
+        "command": "yaKaggle.verifyCredentials",
+        "title": "yaKaggle: Verify API Credentials",
+        "icon": "$(pass)"
+      },
+      {
+        "command": "yaKaggle.openMetadata",
+        "title": "Edit kernel-metadata.json",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "yaKaggle.initKernelMetadata",
+        "title": "yaKaggle: Initialize Kernel Metadata in Folder...",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "yaKaggle.pullRemoteKernelUnsaved",
+        "title": "Pull to Unsaved Editor",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "yaKaggle.viewKernelOutput",
+        "title": "View Kernel Output Logs",
+        "icon": "$(output)"
+      },
+      {
+        "command": "yaKaggle.refreshKernels",
+        "title": "Refresh Kernels",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "yaKaggle.loadMoreKernels",
+        "title": "Load More Kernels...",
+        "icon": "$(ellipsis)"
+      },
+      {
+        "command": "yaKaggle.downloadKernelFiles",
+        "title": "Download Kernel Output Artifacts",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "yaKaggle.initDatasetMetadata",
+        "title": "Create New Dataset...",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "yaKaggle.openDatasetMetadata",
+        "title": "Edit dataset-metadata.json",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "yaKaggle.downloadDatasetArchive",
+        "title": "Download Dataset (Zip)",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "yaKaggle.downloadDatasetFile",
+        "title": "Download Single File",
+        "icon": "$(desktop-download)"
+      },
+      {
+        "command": "yaKaggle.loadMoreDatasetFiles",
+        "title": "Load More Files...",
+        "icon": "$(ellipsis)"
+      },
+      {
+        "command": "yaKaggle.refreshDatasets",
+        "title": "Refresh Datasets",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "yaKaggle.refreshCompetitions",
+        "title": "Refresh Competitions",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "yaKaggle.loadMoreCompetitions",
+        "title": "Load More Competitions...",
+        "icon": "$(ellipsis)"
+      },
+      {
+        "command": "yaKaggle.downloadCompetitionData",
+        "title": "Download Competition Files (Data)",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "yaKaggle.viewLeaderboard",
+        "title": "View Leaderboard & Standings",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "yaKaggle.openCompetitionBrowser",
+        "title": "Open Competition on Kaggle",
+        "icon": "$(link-external)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "yaKaggle.refreshAll",
+          "when": "view == kaggle-kernels",
+          "group": "navigation"
+        },
+        {
+          "command": "yaKaggle.initKernelMetadata",
+          "when": "view == kaggle-kernels",
+          "group": "navigation@1"
+        },
+        {
+          "command": "yaKaggle.refreshKernels",
+          "when": "view == kaggle-kernels",
+          "group": "navigation@2"
+        },
+        {
+          "command": "yaKaggle.initDatasetMetadata",
+          "when": "view == kaggle-datasets",
+          "group": "navigation@1"
+        },
+        {
+          "command": "yaKaggle.refreshDatasets",
+          "when": "view == kaggle-datasets",
+          "group": "navigation@2"
+        },
+        {
+          "command": "yaKaggle.refreshCompetitions",
+          "when": "view == kaggle-competitions",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "yaKaggle.pushKernel",
+          "when": "view == kaggle-kernels && viewItem == localKernel",
+          "group": "inline"
+        },
+        {
+          "command": "yaKaggle.openInBrowser",
+          "when": "viewItem =~ /^(localKernel|remoteKernel|dataset|competition)$/",
+          "group": "inline"
+        },
+        {
+          "command": "yaKaggle.updateDataset",
+          "when": "view == kaggle-datasets && viewItem == localDataset",
+          "group": "inline"
+        },
+        {
+          "command": "yaKaggle.downloadDataset",
+          "when": "view == kaggle-datasets && viewItem == remoteDataset",
+          "group": "inline"
+        },
+        {
+          "command": "yaKaggle.openMetadata",
+          "when": "view == kaggle-kernels && viewItem == localKernel",
+          "group": "inline@1"
+        },
+        {
+          "command": "yaKaggle.pushKernel",
+          "when": "view == kaggle-kernels && viewItem == localKernel",
+          "group": "inline@2"
+        },
+        {
+          "command": "yaKaggle.pullRemoteKernelUnsaved",
+          "when": "view == kaggle-kernels && viewItem == remoteKernel",
+          "group": "inline@1"
+        },
+        {
+          "command": "yaKaggle.viewKernelOutput",
+          "when": "view == kaggle-kernels && viewItem =~ /^(localKernel|remoteKernel|runningKernel)$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "yaKaggle.openInBrowser",
+          "when": "view == kaggle-kernels && viewItem =~ /^(localKernel|remoteKernel|runningKernel)$/",
+          "group": "inline@3"
+        },
+        {
+          "command": "yaKaggle.downloadKernelFiles",
+          "when": "view == kaggle-kernels && viewItem =~ /^(localKernel|remoteKernel|runningKernel)$/",
+          "group": "inline@4"
+        },
+        {
+          "command": "yaKaggle.openDatasetMetadata",
+          "when": "view == kaggle-datasets && viewItem == localDataset",
+          "group": "inline@1"
+        },
+        {
+          "command": "yaKaggle.updateDataset",
+          "when": "view == kaggle-datasets && viewItem == localDataset",
+          "group": "inline@2"
+        },
+        {
+          "command": "yaKaggle.downloadDatasetArchive",
+          "when": "view == kaggle-datasets && viewItem == remoteDataset",
+          "group": "inline@1"
+        },
+        {
+          "command": "yaKaggle.downloadDatasetFile",
+          "when": "view == kaggle-datasets && viewItem == remoteDatasetFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "yaKaggle.openInBrowser",
+          "when": "view == kaggle-datasets && viewItem =~ /^(localDataset|remoteDataset)$/",
+          "group": "inline@3"
+        },
+        {
+          "command": "yaKaggle.downloadCompetitionData",
+          "when": "view == kaggle-competitions && viewItem == competitionItem",
+          "group": "inline@1"
+        },
+        {
+          "command": "yaKaggle.viewLeaderboard",
+          "when": "view == kaggle-competitions && viewItem == competitionItem",
+          "group": "inline@2"
+        },
+        {
+          "command": "yaKaggle.openCompetitionBrowser",
+          "when": "view == kaggle-competitions && viewItem == competitionItem",
+          "group": "inline@3"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "test:unit": "mocha --require out/test/unit/mockVscode.js --ui tdd --reporter spec \"out/test/unit/**/*.test.js\"",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2",
+    "mocha": "^12.0.0",
+    "typescript": "^5.4.0"
+  }
+}

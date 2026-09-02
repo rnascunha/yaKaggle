@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Kaggle Kernel Metadata",
+  "description": "Configuration metadata for Kaggle Kernels/Notebooks",
+  "type": "object",
+  "required": ["id", "code_file", "language", "kernel_type"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$",
+      "description": "Unique identifier in the format 'username/kernel-slug'."
+    },
+    "id_no": {
+      "type": ["integer", "null"],
+      "description": "Internal Kaggle numeric ID (optional, assigned by Kaggle)."
+    },
+    "title": {
+      "type": "string",
+      "description": "Display title of the kernel on Kaggle."
+    },
+    "code_file": {
+      "type": "string",
+      "description": "Relative path to the notebook (.ipynb) or script (.py, .r, .Rmd) file."
+    },
+    "language": {
+      "type": "string",
+      "enum": ["python", "r", "rmarkdown"],
+      "description": "Programming language of the kernel."
+    },
+    "kernel_type": {
+      "type": "string",
+      "enum": ["script", "notebook"],
+      "description": "Kernel execution format."
+    },
+    "is_private": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the kernel is private to you and your collaborators."
+    },
+    "enable_gpu": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable GPU acceleration (e.g. Nvidia T4/P100)."
+    },
+    "enable_tpu": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable Google Cloud TPU acceleration."
+    },
+    "enable_internet": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable outbound internet access during kernel execution."
+    },
+    "dataset_sources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$"
+      },
+      "description": "List of dataset slugs mounted as input data (format: 'username/dataset-slug')."
+    },
+    "competition_sources": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of competition names whose data is mounted to the kernel."
+    },
+    "kernel_sources": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$"
+      },
+      "description": "List of upstream kernel slugs used as inputs."
+    },
+    "model_sources": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of model slugs mounted to the kernel (e.g., 'keras/bert/keras/default')."
+    },
+    "keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of tag strings for discovery."
+    }
+  },
+  "additionalProperties": false
+}

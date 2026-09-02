@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+  <!-- Kaggle vertical backbone with execution notch -->
+  <path d="M5 3.5C5 2.67 5.67 2 6.5 2H7.5C8.33 2 9 2.67 9 3.5V20.5C9 21.33 8.33 22 7.5 22H6.5C5.67 22 5 21.33 5 20.5V3.5Z" fill="currentColor"/>
+  
+  <!-- Upper diagonal branch (Notebook & cloud uplift) -->
+  <path d="M10.8 11.2C10.3 10.7 10.3 9.9 10.8 9.4L15.6 4.3C16.3 3.6 17.4 3.6 18.1 4.3L19.3 5.5C20.0 6.2 20.0 7.3 19.3 8.0L15.2 12.3C14.7 12.8 13.9 12.8 13.4 12.3L10.8 11.2Z" fill="currentColor"/>
+  
+  <!-- Lower diagonal branch (Dynamic execution bracket) -->
+  <path d="M12.9 11.8C13.4 11.3 14.2 11.3 14.7 11.8L19.4 16.3C20.1 17.0 20.1 18.1 19.4 18.8L18.2 20.0C17.5 20.7 16.4 20.7 15.7 20.0L10.8 15.2C10.3 14.7 10.3 13.9 10.8 13.4L12.9 11.8Z" fill="currentColor"/>
+  
+  <!-- Live run indicator pip (Kaggle Dynamics pulse) -->
+  <circle cx="19" cy="12" r="1.5" fill="currentColor"/>
+</svg>

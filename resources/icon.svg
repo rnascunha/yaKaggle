@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="50%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#090D16" />
+    </linearGradient>
+
+    <!-- Kaggle Cyan Glow -->
+    <linearGradient id="kaggleCyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#0284C7" />
+    </linearGradient>
+
+    <!-- Dynamics Pulse Gradient -->
+    <linearGradient id="pulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#20BEFF" />
+      <stop offset="100%" stop-color="#A855F7" />
+    </linearGradient>
+
+    <!-- Subtle Drop Shadow -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.4" />
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#20BEFF" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Container Squircle -->
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#bgGrad)" stroke="#334155" stroke-width="2" />
+
+  <!-- Code Grid / Notebook Lines Background Pattern -->
+  <g opacity="0.08" stroke="#FFFFFF" stroke-width="1.5">
+    <line x1="40" y1="70" x2="216" y2="70" stroke-dasharray="4,6" />
+    <line x1="40" y1="128" x2="216" y2="128" stroke-dasharray="4,6" />
+    <line x1="40" y1="186" x2="216" y2="186" stroke-dasharray="4,6" />
+  </g>
+
+  <!-- Main Emblem Group -->
+  <g filter="url(#glow)">
+    <!-- Vertical Backbone: stylized notebook cell border & spine -->
+    <rect x="52" y="44" width="34" height="168" rx="12" fill="url(#kaggleCyan)" />
+
+    <!-- Notebook status bar dots on spine -->
+    <circle cx="69" cy="64" r="5" fill="#FFFFFF" opacity="0.9" />
+    <circle cx="69" cy="84" r="5" fill="#FFFFFF" opacity="0.4" />
+    <circle cx="69" cy="104" r="5" fill="#FFFFFF" opacity="0.4" />
+
+    <!-- Upper Branch: Modern angled Kaggle 'K' wing -->
+    <path d="M106 130 C99 123 99 113 106 106 L154 58 C162 50 174 50 182 58 L194 70 C202 78 202 90 194 98 L152 140 C145 147 135 147 128 140 Z" fill="url(#kaggleCyan)" />
+
+    <!-- Lower Branch: Interactive Code Bracket / Forward Prompt -->
+    <path d="M128 126 C135 119 145 119 152 126 L194 168 C202 176 202 188 194 196 L182 208 C174 216 162 216 154 208 L106 160 C99 153 99 143 106 136 Z" fill="url(#pulseGrad)" />
+  </g>
+
+  <!-- Execution Status Indicator / Terminal Prompt Dot -->
+  <circle cx="204" cy="132" r="10" fill="#22C55E" stroke="#0F172A" stroke-width="3" />
+</svg>
