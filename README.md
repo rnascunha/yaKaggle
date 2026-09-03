@@ -69,7 +69,7 @@ chmod 600 ~/.kaggle/access_token
 Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) in VS Code and run:
 
 - **`yaKaggle: Verify Credentials`** to confirm the token is detected and valid.
-- If your token is stored in a non-standard folder, configure `yakaggle.kaggleConfigDir` in your VS Code settings.
+- If your token is stored in a non-standard folder, configure `yaKaggle.kaggleConfigDir` in your VS Code settings.
 
 ---
 
@@ -203,8 +203,8 @@ npm test
 
 yaKaggle provides the following settings (`Ctrl+,` or `Cmd+,`):
 
-- `yakaggle.kagglePath`: Custom path to your `kaggle` CLI executable or virtual environment root folder. If empty, yaKaggle auto-discovers it.
-- `yakaggle.kaggleConfigDir`: Custom directory path containing your credentials (`access_token` or `kaggle.json`, defaults to `~/.kaggle`).
+- `yaKaggle.kagglePath`: Custom path to your `kaggle` CLI executable or virtual environment root folder. If empty, yaKaggle auto-discovers it.
+- `yaKaggle.kaggleConfigDir`: Custom directory path containing your credentials (`access_token` or `kaggle.json`, defaults to `~/.kaggle`).
 
 ---
 

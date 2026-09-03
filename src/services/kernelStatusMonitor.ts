@@ -205,7 +205,7 @@ export class KernelStatusMonitor implements vscode.Disposable {
   private renderIdle(): void {
     this.statusBarItem.text = "$(check) Kaggle: Idle";
     this.statusBarItem.tooltip =
-      "Kaggle Dynamics: No kernels currently executing. Click for actions.";
+      "yaKaggle: No kernels currently executing. Click for actions.";
     this.statusBarItem.backgroundColor = undefined;
     this.statusBarItem.show();
   }

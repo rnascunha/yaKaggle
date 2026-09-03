@@ -5,7 +5,7 @@ export class OutputChannelManager {
 
   public static getChannel(): vscode.OutputChannel {
     if (!this.channel) {
-      this.channel = vscode.window.createOutputChannel("Kaggle Dynamics");
+      this.channel = vscode.window.createOutputChannel("yaKaggle");
     }
     return this.channel;
   }
