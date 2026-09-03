@@ -267,11 +267,6 @@
           "group": "inline"
         },
         {
-          "command": "yaKaggle.updateDataset",
-          "when": "view == kaggle-datasets && viewItem == localDataset",
-          "group": "inline"
-        },
-        {
           "command": "yaKaggle.downloadDataset",
           "when": "view == kaggle-datasets && viewItem == remoteDataset",
           "group": "inline"
