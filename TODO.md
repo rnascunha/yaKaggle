@@ -13,6 +13,7 @@ Datasets
 Datasets,Kernels
 
 - When create a new kernel/dataset, fill with username (and not with "username" placeholder)
+- Delete Dataset
 
 Internal
 
