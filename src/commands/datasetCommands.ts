@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import * as fs from "fs";
 import {
   DatasetsProvider,
   KaggleDatasetTreeItem,
@@ -10,6 +11,22 @@ import {
 } from "../services/kaggleCli";
 import { CredentialsManager } from "../services/credentialsManager";
 import { OutputChannelManager } from "../services/outputChannelManager";
+
+function extractDatasetFolder(item?: any): string | undefined {
+  if (!item) {
+    return undefined;
+  }
+
+  if (typeof item?.data?.metadataPath === "string") {
+    return path.dirname(item.data.metadataPath);
+  }
+
+  if (item?.data?.metadataPath instanceof vscode.Uri) {
+    return path.dirname(item.data.metadataPath.fsPath);
+  }
+
+  return undefined;
+}
 
 export function registerDatasetCommands(
   context: vscode.ExtensionContext,
@@ -237,5 +254,47 @@ export function registerDatasetCommands(
       datasetsProvider.refresh();
       vscode.window.showInformationMessage("Kaggle Datasets refreshed.");
     }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "yaKaggle.updateDataset",
+      async (item: any) => {
+        const reportName = item?.data?.id || item?.label || "dataset";
+        try {
+          const filePath = extractDatasetFolder(item);
+          if (!filePath) {
+            throw new Error("Error getting file");
+          }
+
+          const inputMessage = await vscode.window.showInputBox({
+            prompt: `Enter version message for dataset '${reportName}' (optional)`,
+            placeHolder: "e.g., Added clean rows and updated features",
+          });
+
+          // Cancelled via ESC
+          if (inputMessage === undefined) {
+            return;
+          }
+
+          const trimmed = inputMessage.trim();
+          const commitMessage =
+            trimmed.length > 0 ? trimmed : "Updated using yaKaggle";
+
+          vscode.window.showInformationMessage(
+            `Updating dataset ${reportName}...`,
+          );
+
+          await KaggleCliService.pushDataset(filePath, commitMessage);
+          vscode.window.showInformationMessage(
+            `Dataset '${reportName}' updated successfully!`,
+          );
+        } catch (e: any) {
+          vscode.window.showErrorMessage(
+            `Error trying to update dataset '${reportName}': ${e?.message || e}`,
+          );
+        }
+      },
+    ),
   );
 }

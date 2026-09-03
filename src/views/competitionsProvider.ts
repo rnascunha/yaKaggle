@@ -198,14 +198,18 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
   private async initialLoad(): Promise<void> {
     this.isLoading = true;
     try {
-      const [joined, general] = await Promise.all([
-        CompetitionService.getJoinedActiveCompetitions(),
-        CompetitionService.getCompetitionsPage(1, this.pageSize),
-      ]);
-      this.joinedCompetitions = joined;
-      this.generalCompetitions = general;
+      const records = await CompetitionService.getCompetitionsPage(
+        1,
+        this.pageSize,
+      );
+      this.joinedCompetitions = records.filter(
+        (c) => c.userHasEntered && !c.isExpired,
+      );
+      this.generalCompetitions = records.filter(
+        (c) => !c.userHasEntered || c.isExpired,
+      );
       this.isInitialized = true;
-      if (general.length < this.pageSize) {
+      if (this.generalCompetitions.length < this.pageSize) {
         this.hasMoreGeneral = false;
       }
     } catch (err: any) {
@@ -227,7 +231,11 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
       if (pageData.length < this.pageSize) {
         this.hasMoreGeneral = false;
       }
-      this.generalCompetitions.push(...pageData);
+      const joined = pageData.filter((c) => c.userHasEntered && !c.isExpired);
+      const general = pageData.filter((c) => !c.userHasEntered || c.isExpired);
+
+      this.joinedCompetitions.push(...joined);
+      this.generalCompetitions.push(...general);
     } catch (err: any) {
       vscode.window.showErrorMessage(
         `Failed to fetch page ${this.currentPage}: ${err.message}`,

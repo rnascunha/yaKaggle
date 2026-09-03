@@ -6,10 +6,27 @@ import { parseCsv } from "../utils/csvParser";
 
 import { KagglePathResolver } from "./kagglePathResolver";
 
-export interface CliResult {
-  stdout: string;
-  stderr: string;
-  code: number;
+// export interface CliResult {
+//   stdout: string;
+//   stderr: string;
+//   code: number;
+// }
+
+export class KaggleCliError extends Error {
+  public code: number | null;
+  constructor(
+    message: string,
+    code: number | null = null,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.code = code;
+
+    // 3. Maintain clean stack traces (V8 environments like Node.js and Chrome)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
+  }
 }
 
 export class KaggleCliService {
@@ -42,7 +59,9 @@ export class KaggleCliService {
       proc.stderr.on("data", (data) => (stderr += data.toString()));
 
       proc.on("error", (err) => {
-        reject(new Error(`Failed to start Kaggle binary: ${err.message}`));
+        reject(
+          new KaggleCliError(`Failed to start Kaggle binary: ${err.message}`),
+        );
       });
 
       proc.on("close", (code) => {
@@ -51,7 +70,7 @@ export class KaggleCliService {
             stderr.trim() ||
             stdout.trim() ||
             `Command exited with code ${code}`;
-          reject(new Error(errMsg));
+          reject(new KaggleCliError(errMsg, code));
         } else {
           resolve(stdout.trim());
         }
@@ -103,6 +122,8 @@ export class KaggleCliService {
       `"${folderPath}"`,
       "-m",
       `"${versionNotes || "Update dataset"}"`,
+      "--dir-mode",
+      "zip"
     ];
     return await this.execute(args);
   }
