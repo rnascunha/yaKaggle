@@ -1,9 +1,5 @@
 import * as vscode from "vscode";
-import * as path from "path";
-import {
-  CompetitionsProvider,
-  KaggleCompetitionTreeItem,
-} from "../views/competitionsProvider";
+import { CompetitionsProvider } from "../views/competitionsProvider";
 import { CompetitionService } from "../services/competitionService";
 import { OutputChannelManager } from "../services/outputChannelManager";
 
@@ -29,12 +25,18 @@ export function registerCompetitionCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.openCompetitionBrowser",
-      (item: any) => {
-        const { slug, url } = getCleanDetails(item);
+      async (item?: any) => {
+        let { slug, url } = getCleanDetails(item);
+
         if (!slug) {
-          vscode.window.showErrorMessage("No competition selected.");
-          return;
+          const input = await vscode.window.showInputBox({
+            prompt: "Enter competition slug (e.g., titanic)",
+          });
+          if (!input) return;
+          slug = CompetitionService.extractCleanSlug(input);
+          url = `https://www.kaggle.com/competitions/${slug}`;
         }
+
         vscode.env.openExternal(vscode.Uri.parse(url));
       },
     ),
@@ -44,11 +46,16 @@ export function registerCompetitionCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.viewLeaderboard",
-      async (item: any) => {
-        const { slug, title } = getCleanDetails(item);
+      async (item?: any) => {
+        let { slug, title } = getCleanDetails(item);
+
         if (!slug) {
-          vscode.window.showErrorMessage("Please select a valid competition.");
-          return;
+          const input = await vscode.window.showInputBox({
+            prompt: "Enter competition slug to view leaderboard",
+          });
+          if (!input) return;
+          slug = CompetitionService.extractCleanSlug(input);
+          title = slug;
         }
 
         OutputChannelManager.show(false);
@@ -81,7 +88,7 @@ export function registerCompetitionCommands(
                 );
               } else {
                 OutputChannelManager.appendLine(
-                  ` (No team with your username found on the public leaderboard)`,
+                  ` (No team matching your handle found on the public leaderboard)`,
                 );
                 OutputChannelManager.appendLine(
                   `-------------------------------------------------------------------------`,
@@ -117,10 +124,10 @@ export function registerCompetitionCommands(
               vscode.window
                 .showInformationMessage(
                   `Loaded leaderboard for ${title}`,
-                  "View Output Logs",
+                  "View Output Channel",
                 )
                 .then((c) => {
-                  if (c === "View Output Logs") OutputChannelManager.show();
+                  if (c === "View Output Channel") OutputChannelManager.show();
                 });
             } catch (err: any) {
               OutputChannelManager.appendLine(
@@ -140,11 +147,17 @@ export function registerCompetitionCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.downloadCompetitionData",
-      async (item: any) => {
-        const { slug, title, url } = getCleanDetails(item);
+      async (item?: any) => {
+        let { slug, title, url } = getCleanDetails(item);
+
         if (!slug) {
-          vscode.window.showErrorMessage("Please select a valid competition.");
-          return;
+          const input = await vscode.window.showInputBox({
+            prompt: "Enter competition slug to download data for",
+          });
+          if (!input) return;
+          slug = CompetitionService.extractCleanSlug(input);
+          title = slug;
+          url = `https://www.kaggle.com/competitions/${slug}`;
         }
 
         const destUris = await vscode.window.showOpenDialog({
@@ -161,9 +174,9 @@ export function registerCompetitionCommands(
           {
             location: vscode.ProgressLocation.Notification,
             title: `Downloading data for ${title}...`,
-            cancellable: false,
+            cancellable: true,
           },
-          async () => {
+          async (_, token) => {
             try {
               OutputChannelManager.appendLine(
                 `[CLI] Downloading competition data for '${slug}' to ${targetDir}...`,
@@ -185,6 +198,7 @@ export function registerCompetitionCommands(
                 );
               }
             } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
               OutputChannelManager.appendLine(
                 `[Error] Download failed: ${err.message}`,
               );
@@ -224,12 +238,9 @@ export function registerCompetitionCommands(
 
   // 5. Refresh
   context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "yaKaggle.refreshCompetitions",
-      () => {
-        competitionsProvider.refresh();
-        vscode.window.showInformationMessage("Kaggle Competitions refreshed.");
-      },
-    ),
+    vscode.commands.registerCommand("yaKaggle.refreshCompetitions", () => {
+      competitionsProvider.refresh();
+      vscode.window.showInformationMessage("Kaggle Competitions refreshed.");
+    }),
   );
 }

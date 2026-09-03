@@ -36,8 +36,9 @@ jobs:
       - name: Run Unit Tests
         run: npm run test:unit
 
-      # Validate package and link integrity
+      # Run packaging validation once on Linux to save runner time
       - name: Validate VS Code Extension Package
+        if: runner.os == 'Linux'
         run: npx @vscode/vsce package --no-git-tag-version --no-update-package-json
 
       # Run integration suite with headless display on Linux
@@ -50,3 +51,11 @@ jobs:
       - name: Run VS Code Integration Tests (macOS & Windows)
         if: runner.os != 'Linux'
         run: npm test
+
+  # Downstream release triggered ONLY after all matrix tests pass on main
+  release:
+    name: Trigger Release
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release.yml
+    secrets: inherit

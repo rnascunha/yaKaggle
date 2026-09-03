@@ -48,7 +48,7 @@
         "yaKaggle.kaggleConfigDir": {
           "type": "string",
           "default": "",
-          "description": "Custom directory containing kaggle.json. If empty, defaults to ~/.kaggle (or %USERPROFILE%\\.kaggle on Windows)."
+          "description": "Custom directory containing kaggle.json or access_token. If empty, defaults to ~/.kaggle (or %USERPROFILE%\\.kaggle on Windows)."
         }
       }
     },
@@ -104,6 +104,11 @@
       {
         "command": "yaKaggle.kernelStatus",
         "title": "Check Running Status",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "yaKaggle.showKernelQuickPick",
+        "title": "yaKaggle: Show Running Kernels & Quick Actions",
         "icon": "$(play-circle)"
       },
       {

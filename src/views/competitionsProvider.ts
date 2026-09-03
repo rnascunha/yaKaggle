@@ -54,13 +54,13 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
     element?: KaggleCompetitionTreeItem,
   ): Promise<KaggleCompetitionTreeItem[]> {
     if (!element) {
-      if (!this.isInitialized) {
+      if (!this.isInitialized && !this.isLoading) {
         await this.initialLoad();
       }
 
       return [
         new KaggleCompetitionTreeItem(
-          `My Active Competitions (${this.joinedCompetitions.length})`,
+          `My Competitions (${this.joinedCompetitions.length})`,
           vscode.TreeItemCollapsibleState.Expanded,
           "group_joined",
         ),
@@ -75,7 +75,7 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
     if (element.contextValue === "group_joined") {
       if (this.joinedCompetitions.length === 0) {
         const item = new KaggleCompetitionTreeItem(
-          "No active entered competitions found",
+          "No entered competitions found",
           vscode.TreeItemCollapsibleState.None,
           "empty",
         );
@@ -136,27 +136,22 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
 
     item.description = `${deadline.formattedText} • ${c.reward || "Knowledge"}`;
 
-    // --- Distinct Icon & Color Rules ---
     if (!isClosed && isJoined) {
-      // 1. Active + Entered -> Green checkmark
       item.iconPath = new vscode.ThemeIcon(
         "verified-filled",
         new vscode.ThemeColor("charts.green"),
       );
     } else if (isClosed && isJoined) {
-      // 2. Closed + Entered -> Blue checkmark
       item.iconPath = new vscode.ThemeIcon(
         "pass-filled",
         new vscode.ThemeColor("charts.blue"),
       );
     } else if (isClosed && !isJoined) {
-      // 3. Closed + Not Entered -> Gray checkmark
       item.iconPath = new vscode.ThemeIcon(
         "check",
         new vscode.ThemeColor("disabledForeground"),
       );
     } else {
-      // 4. Active + Not Entered -> Urgency / Trophy
       if (deadline.urgency === "critical") {
         item.iconPath = new vscode.ThemeIcon(
           "flame",
@@ -172,7 +167,6 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
       }
     }
 
-    // Markdown Tooltip
     const md = new vscode.MarkdownString();
     md.isTrusted = true;
     md.appendMarkdown(`### ${c.title}\n\n`);
@@ -198,18 +192,16 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
   private async initialLoad(): Promise<void> {
     this.isLoading = true;
     try {
-      const records = await CompetitionService.getCompetitionsPage(
-        1,
-        this.pageSize,
-      );
-      this.joinedCompetitions = records.filter(
-        (c) => c.userHasEntered && !c.isExpired,
-      );
-      this.generalCompetitions = records.filter(
-        (c) => !c.userHasEntered || c.isExpired,
-      );
+      // Parallel loading: fetch joined list and unentered discovery page simultaneously
+      const [joined, general] = await Promise.all([
+        CompetitionService.getJoinedActiveCompetitions(),
+        CompetitionService.getCompetitionsPage(1, this.pageSize),
+      ]);
+
+      this.joinedCompetitions = joined;
+      this.generalCompetitions = general;
       this.isInitialized = true;
-      if (this.generalCompetitions.length < this.pageSize) {
+      if (general.length < this.pageSize) {
         this.hasMoreGeneral = false;
       }
     } catch (err: any) {
@@ -231,11 +223,7 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
       if (pageData.length < this.pageSize) {
         this.hasMoreGeneral = false;
       }
-      const joined = pageData.filter((c) => c.userHasEntered && !c.isExpired);
-      const general = pageData.filter((c) => !c.userHasEntered || c.isExpired);
-
-      this.joinedCompetitions.push(...joined);
-      this.generalCompetitions.push(...general);
+      this.generalCompetitions.push(...pageData);
     } catch (err: any) {
       vscode.window.showErrorMessage(
         `Failed to fetch page ${this.currentPage}: ${err.message}`,

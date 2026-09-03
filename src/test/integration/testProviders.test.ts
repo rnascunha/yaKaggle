@@ -4,18 +4,22 @@ import { KernelsProvider } from "../../views/kernelsProvider";
 import { DatasetsProvider } from "../../views/datasetsProvider";
 import { CompetitionsProvider } from "../../views/competitionsProvider";
 import { KernelStatusMonitor } from "../../services/kernelStatusMonitor";
+import { CompetitionService } from "../../services/competitionService";
 
 suite("Integration Test: Tree Data Providers", () => {
   let context: vscode.ExtensionContext;
   let monitor: KernelStatusMonitor;
 
   suiteSetup(() => {
-    // Dummy context for status monitor registration
     context = {
       subscriptions: [],
-      globalStorageUri: vscode.Uri.file("/tmp"),
+      globalStorageUri: vscode.Uri.file("/tmp/yakaggle-test"),
     } as any;
     monitor = new KernelStatusMonitor(context);
+
+    // Prevent network requests during tree provider integration runs
+    CompetitionService.getJoinedActiveCompetitions = async () => [];
+    CompetitionService.getCompetitionsPage = async () => [];
   });
 
   suiteTeardown(() => {
@@ -41,12 +45,15 @@ suite("Integration Test: Tree Data Providers", () => {
     assert.strictEqual(roots[1].label, "My Remote Datasets");
   });
 
-  test("CompetitionsProvider should provide initial groups", async () => {
+  test("CompetitionsProvider should provide initial groups matching active view", async () => {
     const provider = new CompetitionsProvider();
     const roots = await provider.getChildren();
 
     assert.strictEqual(roots.length, 2);
-    assert.ok(roots[0].label.includes("My Active Competitions"));
+    assert.ok(
+      roots[0].label.includes("My Competitions"),
+      `Expected label to include 'My Competitions', got '${roots[0].label}'`,
+    );
     assert.strictEqual(roots[1].label, "Recent & Featured Competitions");
   });
 });

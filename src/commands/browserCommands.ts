@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import * as path from "path";
+import * as fs from "fs";
 import { CompetitionService } from "../services/competitionService";
 
 export function registerBrowserCommands(
@@ -7,16 +9,11 @@ export function registerBrowserCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.openInBrowser",
-      (item: any) => {
+      async (item?: any) => {
         const data = item?.data;
         const contextVal = item?.contextValue || "";
 
-        if (!data && !item?.label) {
-          vscode.window.showErrorMessage("No Kaggle item selected to open.");
-          return;
-        }
-
-        // If data.url is already a valid complete URL, open directly
+        // 1. Check direct URL property
         if (
           data?.url &&
           typeof data.url === "string" &&
@@ -26,11 +23,51 @@ export function registerBrowserCommands(
           return;
         }
 
-        const rawRef =
+        let rawRef =
           data?.ref ||
           data?.id ||
           (typeof item?.label === "string" ? item.label : "");
-        if (!rawRef) return;
+
+        // 2. Fallback: inspect active editor if invoked from Command Palette without tree selection
+        if (!rawRef && vscode.window.activeTextEditor) {
+          const currentPath =
+            vscode.window.activeTextEditor.document.uri.fsPath;
+          const dir = path.dirname(currentPath);
+
+          const kernelMeta = path.join(dir, "kernel-metadata.json");
+          const datasetMeta = path.join(dir, "dataset-metadata.json");
+
+          if (fs.existsSync(kernelMeta)) {
+            try {
+              const parsed = JSON.parse(fs.readFileSync(kernelMeta, "utf8"));
+              if (parsed.id) {
+                vscode.env.openExternal(
+                  vscode.Uri.parse(`https://www.kaggle.com/code/${parsed.id}`),
+                );
+                return;
+              }
+            } catch {}
+          } else if (fs.existsSync(datasetMeta)) {
+            try {
+              const parsed = JSON.parse(fs.readFileSync(datasetMeta, "utf8"));
+              if (parsed.id) {
+                vscode.env.openExternal(
+                  vscode.Uri.parse(
+                    `https://www.kaggle.com/datasets/${parsed.id}`,
+                  ),
+                );
+                return;
+              }
+            } catch {}
+          }
+        }
+
+        if (!rawRef) {
+          vscode.window.showErrorMessage(
+            "No Kaggle item selected and active file has no Kaggle metadata.",
+          );
+          return;
+        }
 
         let targetUrl = "";
 
@@ -40,8 +77,7 @@ export function registerBrowserCommands(
             : `https://www.kaggle.com/datasets/${rawRef}`;
         } else if (
           data?.type === "competition" ||
-          contextVal.includes("competition") ||
-          contextVal.includes("Competition")
+          contextVal.toLowerCase().includes("competition")
         ) {
           const slug = CompetitionService.extractCleanSlug(rawRef);
           targetUrl = `https://www.kaggle.com/competitions/${slug}`;

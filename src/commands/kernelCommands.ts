@@ -5,8 +5,10 @@ import {
   KaggleKernelTreeItem,
   KernelsProvider,
 } from "../views/kernelsProvider";
-import { KernelOperationsService } from "../services/kaggleCli";
-import { KaggleCliService } from "../services/kaggleCli";
+import {
+  KernelOperationsService,
+  KaggleCliService,
+} from "../services/kaggleCli";
 import { OutputChannelManager } from "../services/outputChannelManager";
 import { KernelStatusMonitor } from "../services/kernelStatusMonitor";
 import { CredentialsManager } from "../services/credentialsManager";
@@ -21,7 +23,14 @@ export function registerKernelCommands(
     vscode.commands.registerCommand(
       "yaKaggle.openMetadata",
       async (item: KaggleKernelTreeItem) => {
-        const metaUri = item?.data?.metadataPath as vscode.Uri;
+        let metaUri: vscode.Uri | undefined;
+
+        if (item?.data?.metadataPath instanceof vscode.Uri) {
+          metaUri = item.data.metadataPath;
+        } else if (typeof item?.data?.metadataPath === "string") {
+          metaUri = vscode.Uri.file(item.data.metadataPath);
+        }
+
         if (metaUri) {
           const doc = await vscode.workspace.openTextDocument(metaUri);
           await vscode.window.showTextDocument(doc);
@@ -45,7 +54,6 @@ export function registerKernelCommands(
         return;
       }
 
-      // Step A: Pick target directory or scan for code files
       const candidateFiles = await vscode.workspace.findFiles(
         "**/*.{ipynb,py,r,R}",
         "**/node_modules/**",
@@ -81,7 +89,6 @@ export function registerKernelCommands(
             : "python";
       }
 
-      // Step B: Kernel Slug & Title Prompt
       const creds = CredentialsManager.inspectCredentials();
       const defaultUser = creds.username || "username";
 
@@ -101,7 +108,6 @@ export function registerKernelCommands(
       });
       if (!slug) return;
 
-      // Step C: Write file & open editor
       const metaUri = await KernelOperationsService.initKernelMetadata(
         targetFolder,
         {
@@ -138,45 +144,58 @@ export function registerKernelCommands(
           {
             location: vscode.ProgressLocation.Notification,
             title: `Pulling notebook '${slug}' from Kaggle...`,
-            cancellable: false,
+            cancellable: true,
           },
-          async () => {
+          async (_, token) => {
             try {
               const tempDir = path.join(
                 context.globalStorageUri.fsPath,
                 "temp-pulls",
-                slug.replace("/", "_"),
+                slug.replace(/[\\/]/g, "_"),
               );
               const { filename, content, isNotebook } =
-                await KernelOperationsService.pullKernelContent(slug, tempDir);
+                await KernelOperationsService.pullKernelContent(
+                  slug,
+                  tempDir,
+                  token,
+                );
 
               if (isNotebook) {
-                // Open untitled Jupyter Notebook in memory
-                const notebookData = JSON.parse(
-                  new TextDecoder().decode(content),
-                );
-                const untitledDoc = await vscode.workspace.openNotebookDocument(
-                  "jupyter-notebook",
-                  new vscode.NotebookData(
-                    notebookData.cells.map((cell: any) => {
-                      const kind =
-                        cell.cell_type === "code"
-                          ? vscode.NotebookCellKind.Code
-                          : vscode.NotebookCellKind.Markup;
-                      const cellData = new vscode.NotebookCellData(
-                        kind,
-                        Array.isArray(cell.source)
-                          ? cell.source.join("")
-                          : cell.source,
-                        cell.cell_type === "code" ? "python" : "markdown",
-                      );
-                      return cellData;
-                    }),
-                  ),
-                );
-                await vscode.window.showNotebookDocument(untitledDoc);
+                try {
+                  const notebookData = JSON.parse(
+                    new TextDecoder().decode(content),
+                  );
+                  const untitledDoc =
+                    await vscode.workspace.openNotebookDocument(
+                      "jupyter-notebook",
+                      new vscode.NotebookData(
+                        (notebookData.cells || []).map((cell: any) => {
+                          const kind =
+                            cell.cell_type === "code"
+                              ? vscode.NotebookCellKind.Code
+                              : vscode.NotebookCellKind.Markup;
+                          const rawSource = cell.source || "";
+                          const cellData = new vscode.NotebookCellData(
+                            kind,
+                            Array.isArray(rawSource)
+                              ? rawSource.join("")
+                              : rawSource,
+                            cell.cell_type === "code" ? "python" : "markdown",
+                          );
+                          return cellData;
+                        }),
+                      ),
+                    );
+                  await vscode.window.showNotebookDocument(untitledDoc);
+                } catch {
+                  // Fallback to text editor if Jupyter provider is not installed
+                  const untitledDoc = await vscode.workspace.openTextDocument({
+                    content: new TextDecoder().decode(content),
+                    language: "json",
+                  });
+                  await vscode.window.showTextDocument(untitledDoc);
+                }
               } else {
-                // Open untitled Text/Python script buffer in memory
                 const untitledDoc = await vscode.workspace.openTextDocument({
                   content: new TextDecoder().decode(content),
                   language: filename.endsWith(".py") ? "python" : "r",
@@ -188,6 +207,7 @@ export function registerKernelCommands(
                 `Pulled '${slug}' into a new buffer.`,
               );
             } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
               vscode.window.showErrorMessage(`Pull failed: ${err.message}`);
             }
           },
@@ -200,11 +220,28 @@ export function registerKernelCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.viewKernelOutput",
-      async (item: KaggleKernelTreeItem) => {
-        const slug = item?.data?.id || item?.data?.ref;
+      async (item?: KaggleKernelTreeItem) => {
+        let slug = item?.data?.id || item?.data?.ref;
+
         if (!slug) {
-          vscode.window.showErrorMessage("Select a kernel to view output.");
-          return;
+          const tracked = statusMonitor.getTrackedKernels();
+          if (tracked.length > 0) {
+            const picked = await vscode.window.showQuickPick(
+              tracked.map((t) => ({
+                label: t.slug,
+                description: t.lastKnownState,
+              })),
+              { placeHolder: "Select a tracked kernel to inspect" },
+            );
+            if (!picked) return;
+            slug = picked.label;
+          } else {
+            const input = await vscode.window.showInputBox({
+              prompt: "Enter Kaggle kernel slug (username/kernel-name)",
+            });
+            if (!input) return;
+            slug = input.trim();
+          }
         }
 
         OutputChannelManager.show(false);
@@ -213,18 +250,25 @@ export function registerKernelCommands(
         );
 
         try {
-          const status = await KaggleCliService.getKernelStatus(slug);
+          const rawStatus = await KaggleCliService.getKernelStatus(slug);
+
+          // Synchronize activeKernels tracking in KernelStatusMonitor
+          const parsedState = statusMonitor.syncKernelStatus(slug, rawStatus);
+
           OutputChannelManager.appendLine(
-            `[Status] Current Execution State: ${status.toUpperCase()}`,
+            `[Status] Current Execution State: ${rawStatus.toUpperCase()} [${parsedState.toUpperCase()}]`,
           );
 
           const tempPath = path.join(
             context.globalStorageUri.fsPath,
             "kernel-outputs",
-            slug.replace("/", "_"),
+            slug.replace(/[\\/]/g, "_"),
           );
-          const output = await KaggleCliService.getKernelOutput(slug, tempPath);
+          if (!fs.existsSync(tempPath)) {
+            fs.mkdirSync(tempPath, { recursive: true });
+          }
 
+          const output = await KaggleCliService.getKernelOutput(slug, tempPath);
           OutputChannelManager.appendLine(
             `\n--- Execution Output for ${slug} ---`,
           );
@@ -243,7 +287,33 @@ export function registerKernelCommands(
     ),
   );
 
-  // 5. Refresh Kernels View
+  // 5. Check Running Status
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "yaKaggle.kernelStatus",
+      async (item?: any) => {
+        const slug = item?.data?.id || item?.data?.ref;
+        if (slug) {
+          try {
+            const rawStatus = await KaggleCliService.getKernelStatus(slug);
+            const parsedState = statusMonitor.syncKernelStatus(slug, rawStatus);
+            vscode.window.showInformationMessage(
+              `Kernel '${slug}' status: ${parsedState.toUpperCase()}`,
+            );
+          } catch (err: any) {
+            vscode.window.showErrorMessage(
+              `Failed to get status for ${slug}: ${err.message}`,
+            );
+          }
+        } else {
+          await statusMonitor.pollNow();
+          vscode.commands.executeCommand("yaKaggle.showKernelQuickPick");
+        }
+      },
+    ),
+  );
+
+  // 6. Refresh Kernels View
   context.subscriptions.push(
     vscode.commands.registerCommand("yaKaggle.refreshKernels", () => {
       kernelsProvider.refresh();
@@ -251,14 +321,14 @@ export function registerKernelCommands(
     }),
   );
 
-  // Command: Load More Remote Kernels (Pagination)
+  // 7. Load More Remote Kernels
   context.subscriptions.push(
     vscode.commands.registerCommand("yaKaggle.loadMoreKernels", async () => {
       await kernelsProvider.loadMore();
     }),
   );
 
-  // Command: Download Kernel Output Artifacts (CSV, Models, Charts)
+  // 8. Download Kernel Output Artifacts
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.downloadKernelFiles",
@@ -271,7 +341,6 @@ export function registerKernelCommands(
           return;
         }
 
-        // Pick destination folder
         const targetUris = await vscode.window.showOpenDialog({
           canSelectFiles: false,
           canSelectFolders: true,
@@ -283,25 +352,26 @@ export function registerKernelCommands(
 
         const destPath = path.join(
           targetUris[0].fsPath,
-          slug.replace("/", "_") + "_output",
+          slug.replace(/[\\/]/g, "_") + "_output",
         );
 
         await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
             title: `Downloading output artifacts for '${slug}'...`,
-            cancellable: false,
+            cancellable: true,
           },
-          async () => {
+          async (_, token) => {
             try {
               const files = await KaggleCliService.downloadKernelArtifacts(
                 slug,
                 destPath,
+                token,
               );
               const choice = await vscode.window.showInformationMessage(
                 `Downloaded ${files.length} file(s) to ${destPath}`,
                 "Open Folder",
-                "View Output Channel",
+                "View yaKaggle Logs",
               );
 
               if (choice === "Open Folder") {
@@ -309,10 +379,11 @@ export function registerKernelCommands(
                   "revealFileInOS",
                   vscode.Uri.file(destPath),
                 );
-              } else if (choice === "View Output Channel") {
+              } else if (choice === "View yaKaggle Logs") {
                 OutputChannelManager.show();
               }
             } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
               vscode.window.showErrorMessage(
                 `Failed to download artifacts: ${err.message}`,
               );
@@ -323,47 +394,52 @@ export function registerKernelCommands(
     ),
   );
 
+  // 9. Push Kernel to Kaggle
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.pushKernel",
       async (item?: any) => {
         let targetDir: string | undefined;
 
-        // 1. Triggered from editor title or explorer context menu (item IS a vscode.Uri)
-        if (item && item.fsPath && typeof item.fsPath === "string") {
+        // 1. Direct Uri invocation (editor title icon or Explorer context menu)
+        if (item instanceof vscode.Uri) {
+          const stat = fs.statSync(item.fsPath);
+          targetDir = stat.isDirectory()
+            ? item.fsPath
+            : path.dirname(item.fsPath);
+        } else if (item?.fsPath && typeof item.fsPath === "string") {
           const stat = fs.statSync(item.fsPath);
           targetDir = stat.isDirectory()
             ? item.fsPath
             : path.dirname(item.fsPath);
         }
-        // 2. Triggered from TreeView element with custom data
-        else if (
-          item?.data?.folderPath &&
-          typeof item.data.folderPath === "string"
-        ) {
-          targetDir = item.data.folderPath;
+        // 2. TreeView Item holding metadataPath as Uri (CRITICAL FIX)
+        else if (item?.data?.metadataPath instanceof vscode.Uri) {
+          targetDir = path.dirname(item.data.metadataPath.fsPath);
         } else if (
           item?.data?.metadataPath &&
           typeof item.data.metadataPath === "string"
         ) {
           targetDir = path.dirname(item.data.metadataPath);
-        }
-        // 3. Triggered from TreeView element holding a resourceUri property
-        else if (
-          item?.resourceUri?.fsPath &&
-          typeof item.resourceUri.fsPath === "string"
+        } else if (
+          item?.data?.folderPath &&
+          typeof item.data.folderPath === "string"
         ) {
+          targetDir = item.data.folderPath;
+        }
+        // 3. TreeView Item holding resourceUri
+        else if (item?.resourceUri instanceof vscode.Uri) {
           const stat = fs.statSync(item.resourceUri.fsPath);
           targetDir = stat.isDirectory()
             ? item.resourceUri.fsPath
             : path.dirname(item.resourceUri.fsPath);
         }
-        // 4. Fallback: Currently active editor tab
+        // 4. Fallback: Check Active Editor
         else if (vscode.window.activeTextEditor?.document?.uri?.fsPath) {
           const activePath = vscode.window.activeTextEditor.document.uri.fsPath;
           targetDir = path.dirname(activePath);
         }
-        // 5. Fallback: Root of first workspace folder
+        // 5. Fallback: Workspace folder scanning
         else if (
           vscode.workspace.workspaceFolders &&
           vscode.workspace.workspaceFolders.length > 0
@@ -373,7 +449,7 @@ export function registerKernelCommands(
 
         if (!targetDir || typeof targetDir !== "string") {
           vscode.window.showErrorMessage(
-            "Could not determine folder to push. Open a file inside the kernel folder or select it from the tree view.",
+            "Could not determine folder to push. Select a kernel from the tree view or open a file inside the kernel folder.",
           );
           return;
         }
@@ -386,7 +462,6 @@ export function registerKernelCommands(
           return;
         }
 
-        // Read slug/id from metadata for tracking
         let kernelSlug = "";
         try {
           const rawContent = fs.readFileSync(metadataPath, "utf-8");
@@ -408,16 +483,14 @@ export function registerKernelCommands(
           {
             location: vscode.ProgressLocation.Notification,
             title: `Pushing kernel to Kaggle (${kernelSlug || path.basename(targetDir)})...`,
-            cancellable: false,
+            cancellable: true,
           },
-          async () => {
+          async (_, token) => {
             try {
-              const result = await KaggleCliService.execute([
-                "kernels",
-                "push",
-                "-p",
-                `"${targetDir}"`,
-              ]);
+              const result = await KaggleCliService.pushKernel(
+                targetDir!,
+                token,
+              );
               OutputChannelManager.appendLine(`[Push] Output:\n${result}`);
 
               vscode.window
@@ -437,6 +510,7 @@ export function registerKernelCommands(
 
               kernelsProvider.refresh();
             } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
               OutputChannelManager.appendLine(
                 `[Error] Kernel push failed: ${err.message}`,
               );

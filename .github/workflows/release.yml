@@ -1,52 +1,92 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "package.json"
+  workflow_call:
 
 jobs:
   publish:
+    name: Publish to Marketplace
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          # Fetch enough history to resolve the commit prior to this push
+          fetch-depth: 0
 
-      - name: Check if version changed
+      - name: Check for Version Increase
         id: check_version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
-          PREV_VERSION=$(git show HEAD~1:package.json 2>/dev/null | jq -r '.version // empty')
+          # Resolve target SHA prior to the current push
+          PREV_SHA="$BEFORE_SHA"
+          if [ -z "$PREV_SHA" ] || [ "$PREV_SHA" = "0000000000000000000000000000000000000000" ]; then
+            PREV_SHA=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+
+          if [ -n "$PREV_SHA" ]; then
+            PREV_VERSION=$(git show "$PREV_SHA":package.json 2>/dev/null | jq -r '.version // empty')
+          else
+            PREV_VERSION=""
+          fi
+
           CURR_VERSION=$(jq -r '.version' package.json)
-          echo "Previous version: $PREV_VERSION"
+          echo "Previous version: ${PREV_VERSION:-None}"
           echo "Current version:  $CURR_VERSION"
 
-          if [ -n "$PREV_VERSION" ] && [ "$PREV_VERSION" != "$CURR_VERSION" ]; then
-            echo "Version changed from $PREV_VERSION to $CURR_VERSION. Proceeding with release."
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          # Verify strict semver increase (major, minor, or patch)
+          IS_INCREASE=$(node -e '
+            const cur = process.argv[1];
+            const prev = process.argv[2];
+            if (!prev) {
+              process.stdout.write("true");
+              process.exit(0);
+            }
+            const parse = v => v.replace(/^v/, "").split(".").map(n => parseInt(n, 10) || 0);
+            const [cMaj, cMin, cPat] = parse(cur);
+            const [pMaj, pMin, pPat] = parse(prev);
+
+            const isGreater =
+              cMaj > pMaj ||
+              (cMaj === pMaj && cMin > pMin) ||
+              (cMaj === pMaj && cMin === pMin && cPat > pPat);
+
+            process.stdout.write(isGreater ? "true" : "false");
+          ' "$CURR_VERSION" "$PREV_VERSION")
+
+          if [ "$IS_INCREASE" = "true" ]; then
+            echo "Version increased from '$PREV_VERSION' to '$CURR_VERSION'. Proceeding with release."
+            echo "increased=true" >> "$GITHUB_OUTPUT"
+            echo "version=$CURR_VERSION" >> "$GITHUB_OUTPUT"
           else
-            echo "Version did not change. Skipping release."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Version was not increased. Skipping release."
+            echo "increased=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Node.js 22.x
-        if: steps.check_version.outputs.changed == 'true'
+        if: steps.check_version.outputs.increased == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: "npm"
 
       - name: Install dependencies
-        if: steps.check_version.outputs.changed == 'true'
+        if: steps.check_version.outputs.increased == 'true'
         run: npm ci
 
       - name: Compile extension
-        if: steps.check_version.outputs.changed == 'true'
+        if: steps.check_version.outputs.increased == 'true'
         run: npm run compile
 
       - name: Publish to VS Code Marketplace
-        if: steps.check_version.outputs.changed == 'true'
+        if: steps.check_version.outputs.increased == 'true'
         run: npx @vscode/vsce publish -p ${{ secrets.VSCE_PAT }}
+
+      - name: Create Git Tag
+        if: steps.check_version.outputs.increased == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.check_version.outputs.version }}"
+          git push origin "v${{ steps.check_version.outputs.version }}"

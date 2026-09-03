@@ -14,15 +14,23 @@ import { OutputChannelManager } from "../services/outputChannelManager";
 
 function extractDatasetFolder(item?: any): string | undefined {
   if (!item) {
+    if (vscode.window.activeTextEditor?.document?.uri) {
+      return path.dirname(vscode.window.activeTextEditor.document.uri.fsPath);
+    }
     return undefined;
   }
 
-  if (typeof item?.data?.metadataPath === "string") {
-    return path.dirname(item.data.metadataPath);
+  if (item instanceof vscode.Uri) {
+    const stat = fs.statSync(item.fsPath);
+    return stat.isDirectory() ? item.fsPath : path.dirname(item.fsPath);
   }
 
   if (item?.data?.metadataPath instanceof vscode.Uri) {
     return path.dirname(item.data.metadataPath.fsPath);
+  }
+
+  if (typeof item?.data?.metadataPath === "string") {
+    return path.dirname(item.data.metadataPath);
   }
 
   return undefined;
@@ -37,7 +45,14 @@ export function registerDatasetCommands(
     vscode.commands.registerCommand(
       "yaKaggle.openDatasetMetadata",
       async (item: KaggleDatasetTreeItem) => {
-        const metaUri = item?.data?.metadataPath as vscode.Uri;
+        let metaUri: vscode.Uri | undefined;
+
+        if (item?.data?.metadataPath instanceof vscode.Uri) {
+          metaUri = item.data.metadataPath;
+        } else if (typeof item?.data?.metadataPath === "string") {
+          metaUri = vscode.Uri.file(item.data.metadataPath);
+        }
+
         if (metaUri) {
           const doc = await vscode.workspace.openTextDocument(metaUri);
           await vscode.window.showTextDocument(doc);
@@ -109,12 +124,71 @@ export function registerDatasetCommands(
     ),
   );
 
-  // 3. Download Entire Dataset as Unextracted Zip
+  // 3. Download & Unzip Dataset (Registers command defined in package.json)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "yaKaggle.downloadDataset",
+      async (item: KaggleDatasetTreeItem) => {
+        const slug = item?.data?.ref || item?.data?.id;
+        if (!slug) {
+          vscode.window.showErrorMessage("Please select a remote dataset.");
+          return;
+        }
+
+        const destUris = await vscode.window.showOpenDialog({
+          canSelectFiles: false,
+          canSelectFolders: true,
+          canSelectMany: false,
+          openLabel: "Select Destination Folder (Will Unzip)",
+        });
+
+        if (!destUris || !destUris[0]) return;
+        const targetDir = destUris[0].fsPath;
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Downloading & unzipping dataset '${slug}'...`,
+            cancellable: true,
+          },
+          async (_, token) => {
+            try {
+              OutputChannelManager.appendLine(
+                `[CLI] Downloading and unzipping dataset: ${slug}`,
+              );
+              const result = await KaggleCliService.downloadDataset(
+                slug,
+                targetDir,
+                token,
+              );
+              OutputChannelManager.appendLine(`[CLI] ${result}`);
+
+              const choice = await vscode.window.showInformationMessage(
+                `Dataset '${slug}' downloaded and unzipped to ${targetDir}`,
+                "Open Folder",
+              );
+              if (choice === "Open Folder") {
+                vscode.commands.executeCommand(
+                  "revealFileInOS",
+                  vscode.Uri.file(targetDir),
+                );
+              }
+            } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
+              vscode.window.showErrorMessage(`Download failed: ${err.message}`);
+            }
+          },
+        );
+      },
+    ),
+  );
+
+  // 4. Download Entire Dataset as Unextracted Zip Archive
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.downloadDatasetArchive",
       async (item: KaggleDatasetTreeItem) => {
-        const slug = item?.data?.fullSlug || item?.data?.ref;
+        const slug = item?.data?.ref || item?.data?.id;
         if (!slug) {
           vscode.window.showErrorMessage(
             "Please select a valid remote dataset.",
@@ -135,10 +209,10 @@ export function registerDatasetCommands(
         await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
-            title: `Downloading '${slug}' archive (keeping zipped)...`,
-            cancellable: false,
+            title: `Downloading '${slug}' archive (.zip)...`,
+            cancellable: true,
           },
-          async () => {
+          async (_, token) => {
             try {
               OutputChannelManager.appendLine(
                 `[CLI] Downloading full dataset archive: ${slug}`,
@@ -147,6 +221,7 @@ export function registerDatasetCommands(
                 await DatasetOperationsService.downloadDatasetArchive(
                   slug,
                   targetDir,
+                  token,
                 );
               OutputChannelManager.appendLine(`[CLI] ${result}`);
 
@@ -161,6 +236,7 @@ export function registerDatasetCommands(
                 );
               }
             } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
               vscode.window.showErrorMessage(`Download failed: ${err.message}`);
             }
           },
@@ -169,7 +245,7 @@ export function registerDatasetCommands(
     ),
   );
 
-  // 4. Download Single Remote File
+  // 5. Download Single Remote File
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.downloadDatasetFile",
@@ -194,9 +270,9 @@ export function registerDatasetCommands(
           {
             location: vscode.ProgressLocation.Notification,
             title: `Downloading '${fileData.name}' from ${fileData.parentSlug}...`,
-            cancellable: false,
+            cancellable: true,
           },
-          async () => {
+          async (_, token) => {
             try {
               OutputChannelManager.appendLine(
                 `[CLI] Downloading file '${fileData.name}' from ${fileData.parentSlug}...`,
@@ -206,9 +282,9 @@ export function registerDatasetCommands(
                 fileData.parentSlug,
                 fileData.name,
                 targetDir,
+                token,
               );
 
-              const downloadedFilePath = path.join(targetDir, fileData.name);
               vscode.window
                 .showInformationMessage(
                   `Successfully downloaded ${fileData.name} to ${targetDir}`,
@@ -223,6 +299,7 @@ export function registerDatasetCommands(
                   }
                 });
             } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
               OutputChannelManager.appendLine(
                 `[Error] Single file download failed: ${err.message}`,
               );
@@ -236,7 +313,7 @@ export function registerDatasetCommands(
     ),
   );
 
-  // 5. Load More Remote Dataset Files (Pagination)
+  // 6. Load More Remote Dataset Files
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.loadMoreDatasetFiles",
@@ -248,7 +325,7 @@ export function registerDatasetCommands(
     ),
   );
 
-  // 6. Refresh Datasets View
+  // 7. Refresh Datasets View
   context.subscriptions.push(
     vscode.commands.registerCommand("yaKaggle.refreshDatasets", () => {
       datasetsProvider.refresh();
@@ -256,6 +333,7 @@ export function registerDatasetCommands(
     }),
   );
 
+  // 8. Update Local Dataset Version
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.updateDataset",
@@ -264,7 +342,9 @@ export function registerDatasetCommands(
         try {
           const filePath = extractDatasetFolder(item);
           if (!filePath) {
-            throw new Error("Error getting file");
+            throw new Error(
+              "Could not locate dataset folder. Open a file inside the dataset folder or select it from the sidebar.",
+            );
           }
 
           const inputMessage = await vscode.window.showInputBox({
@@ -272,26 +352,32 @@ export function registerDatasetCommands(
             placeHolder: "e.g., Added clean rows and updated features",
           });
 
-          // Cancelled via ESC
-          if (inputMessage === undefined) {
-            return;
-          }
+          if (inputMessage === undefined) return;
 
-          const trimmed = inputMessage.trim();
-          const commitMessage =
-            trimmed.length > 0 ? trimmed : "Updated using yaKaggle";
+          const commitMessage = inputMessage.trim() || "Updated using yaKaggle";
 
-          vscode.window.showInformationMessage(
-            `Updating dataset ${reportName}...`,
-          );
-
-          await KaggleCliService.pushDataset(filePath, commitMessage);
-          vscode.window.showInformationMessage(
-            `Dataset '${reportName}' updated successfully!`,
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Pushing new version of '${reportName}'...`,
+              cancellable: true,
+            },
+            async (_, token) => {
+              await KaggleCliService.pushDataset(
+                filePath,
+                commitMessage,
+                token,
+              );
+              vscode.window.showInformationMessage(
+                `Dataset '${reportName}' updated successfully!`,
+              );
+            },
           );
         } catch (e: any) {
+          console.log(e)
+          if (e instanceof vscode.CancellationError) return;
           vscode.window.showErrorMessage(
-            `Error trying to update dataset '${reportName}': ${e?.message || e}`,
+            `Error updating dataset '${reportName}': ${e?.message || e}`,
           );
         }
       },

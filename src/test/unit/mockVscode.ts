@@ -2,14 +2,24 @@ import Module = require("module");
 
 const originalLoad = (Module as any)._load;
 
-// Mock VS Code API object
+export class MockCancellationError extends Error {
+  constructor() {
+    super("Canceled");
+    this.name = "CancellationError";
+  }
+}
+
 const vscodeMock = {
+  CancellationError: MockCancellationError,
   workspace: {
     workspaceFolders: undefined,
     getConfiguration: () => ({
-      get: () => "",
+      get: (_key: string, defaultValue = "") => defaultValue,
+      update: async () => {},
     }),
     findFiles: async () => [],
+    onDidChangeConfiguration: () => ({ dispose: () => {} }),
+    onDidChangeWorkspaceFolders: () => ({ dispose: () => {} }),
     fs: {
       readFile: async () => new Uint8Array(),
     },
@@ -18,6 +28,21 @@ const vscodeMock = {
     showInformationMessage: async () => undefined,
     showErrorMessage: async () => undefined,
     showWarningMessage: async () => undefined,
+    showQuickPick: async () => undefined,
+    showInputBox: async () => undefined,
+    showOpenDialog: async () => undefined,
+    withProgress: async (
+      _options: any,
+      task: (progress: any, token: any) => Promise<any>,
+    ) => {
+      return task(
+        { report: () => {} },
+        {
+          isCancellationRequested: false,
+          onCancellationRequested: () => ({ dispose: () => {} }),
+        },
+      );
+    },
     createOutputChannel: () => ({
       appendLine: () => {},
       show: () => {},
@@ -27,11 +52,23 @@ const vscodeMock = {
     createStatusBarItem: () => ({
       show: () => {},
       dispose: () => {},
+      text: "",
+      tooltip: "",
     }),
+  },
+  extensions: {
+    getExtension: () => undefined,
   },
   Uri: {
     file: (f: string) => ({ fsPath: f, path: f, scheme: "file" }),
     parse: (s: string) => ({ toString: () => s, fsPath: s }),
+    joinPath: (base: any, ...parts: string[]) => {
+      const path = require("path");
+      return {
+        fsPath: path.join(base.fsPath || base, ...parts),
+        scheme: "file",
+      };
+    },
   },
   TreeItem: class {
     constructor(
@@ -49,14 +86,27 @@ const vscodeMock = {
   ThemeColor: class {
     constructor(public id: string) {}
   },
+  MarkdownString: class {
+    private text = "";
+    isTrusted = false;
+    appendMarkdown(str: string) {
+      this.text += str;
+    }
+  },
   EventEmitter: class {
-    event = () => {};
+    event = () => ({ dispose: () => {} });
     fire = () => {};
   },
   StatusBarAlignment: { Left: 1, Right: 2 },
+  ProgressLocation: { Notification: 15, Window: 10 },
+  ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+  Disposable: class {
+    static from(...disposables: { dispose(): any }[]) {
+      return { dispose: () => disposables.forEach((d) => d.dispose()) };
+    }
+  },
 };
 
-// Monkey-patch Node's module loader to intercept 'vscode'
 (Module as any)._load = function (
   request: string,
   parent: any,

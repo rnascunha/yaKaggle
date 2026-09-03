@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as fs from "fs";
 import { KaggleCliService } from "./kaggleCli";
 import { OutputChannelManager } from "./outputChannelManager";
 
@@ -37,24 +38,65 @@ export class KernelStatusMonitor implements vscode.Disposable {
     this.startPolling();
   }
 
-  public registerRunningKernel(slug: string): void {
-    if (!this.activeKernels.has(slug)) {
+  public isTracked(slug: string): boolean {
+    return this.activeKernels.has(slug);
+  }
+
+  public registerRunningKernel(
+    slug: string,
+    initialState: KernelState = "queued",
+  ): void {
+    const existing = this.activeKernels.get(slug);
+    if (!existing) {
       this.activeKernels.set(slug, {
         slug,
-        lastKnownState: "queued",
+        lastKnownState: initialState,
         startTime: new Date(),
       });
       OutputChannelManager.appendLine(
         `[Monitor] Registered kernel '${slug}' for real-time tracking.`,
       );
+    } else {
+      existing.lastKnownState = initialState;
     }
     this.render();
     this.pollNow();
   }
 
   public unregisterKernel(slug: string): void {
-    this.activeKernels.delete(slug);
-    this.render();
+    if (this.activeKernels.has(slug)) {
+      this.activeKernels.delete(slug);
+      OutputChannelManager.appendLine(
+        `[Monitor] Unregistered kernel '${slug}' from real-time tracking.`,
+      );
+      this.render();
+    }
+  }
+
+  public parseStatusString(raw: string): KernelState {
+    const clean = raw.toLowerCase();
+    if (clean.includes("running")) return "running";
+    if (clean.includes("queued")) return "queued";
+    if (clean.includes("complete") || clean.includes("finished"))
+      return "complete";
+    if (clean.includes("error") || clean.includes("failed")) return "error";
+    return "unknown";
+  }
+
+  /**
+   * Synchronizes tracker state based on newly fetched status:
+   * Adds if queued or running; removes if finished, failed, or idle.
+   */
+  public syncKernelStatus(slug: string, rawStatus: string): KernelState {
+    const state = this.parseStatusString(rawStatus);
+
+    if (state === "running" || state === "queued") {
+      this.registerRunningKernel(slug, state);
+    } else if (this.activeKernels.has(slug)) {
+      this.unregisterKernel(slug);
+    }
+
+    return state;
   }
 
   public startPolling(): void {
@@ -112,16 +154,6 @@ export class KernelStatusMonitor implements vscode.Disposable {
     }
   }
 
-  private parseStatusString(raw: string): KernelState {
-    const clean = raw.toLowerCase();
-    if (clean.includes("running")) return "running";
-    if (clean.includes("queued")) return "queued";
-    if (clean.includes("complete") || clean.includes("finished"))
-      return "complete";
-    if (clean.includes("error") || clean.includes("failed")) return "error";
-    return "unknown";
-  }
-
   private handleStateTransition(
     slug: string,
     oldState: KernelState,
@@ -159,21 +191,58 @@ export class KernelStatusMonitor implements vscode.Disposable {
     OutputChannelManager.appendLine(
       `\n---------------- [OUTPUT: ${slug} (${state.toUpperCase()})] ----------------`,
     );
+
     try {
-      const tempPath = vscode.Uri.joinPath(
+      // 1. Resolve and sanitize target folder path
+      const sanitizedSlug = slug.replace(/[\\/]/g, "_");
+      const targetDirUri = vscode.Uri.joinPath(
         this.context.globalStorageUri,
         "kernel-outputs",
-        slug.replace("/", "_"),
-      ).fsPath;
-      const output = await KaggleCliService.getKernelOutput(slug, tempPath);
+        sanitizedSlug,
+      );
+      const tempPath = targetDirUri.fsPath;
+
+      // 2. Ensure global storage root and kernel directory exist recursively
+      if (!fs.existsSync(tempPath)) {
+        fs.mkdirSync(tempPath, { recursive: true });
+      }
+
+      // 3. Fetch output via Kaggle CLI
+      const cliStdout = await KaggleCliService.getKernelOutput(slug, tempPath);
+
+      // 4. Kaggle CLI writes log files directly into the destination directory.
+      // If cliStdout is empty or just says files were downloaded, check for log files.
+      let logContent = cliStdout ? cliStdout.trim() : "";
+
+      const files = fs.readdirSync(tempPath);
+      const logFile = files.find(
+        (f) => f.endsWith(".log") || f.endsWith(".txt") || f.includes("output"),
+      );
+
+      if (logFile) {
+        const fileText = fs
+          .readFileSync(
+            vscode.Uri.joinPath(targetDirUri, logFile).fsPath,
+            "utf8",
+          )
+          .trim();
+        if (fileText.length > 0) {
+          logContent = logContent
+            ? `${logContent}\n\n[File: ${logFile}]\n${fileText}`
+            : fileText;
+        }
+      }
+
       OutputChannelManager.appendLine(
-        output || "No text output returned by kernel.",
+        logContent ||
+          "Kernel completed. Output directory created, but no textual log was produced.",
       );
     } catch (err: any) {
       OutputChannelManager.appendLine(
         `Could not fetch log output: ${err.message}`,
       );
     }
+
     OutputChannelManager.appendLine(
       `-------------------------------------------------------------------------\n`,
     );

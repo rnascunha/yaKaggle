@@ -7,7 +7,6 @@ export function registerStatusCommands(
   context: vscode.ExtensionContext,
   monitor: KernelStatusMonitor,
 ): void {
-  // Show QuickPick on status bar click
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.showKernelQuickPick",
@@ -20,7 +19,7 @@ export function registerStatusCommands(
 
         const items: QuickPickItemWithAction[] = [
           {
-            label: "$(output) Show Kaggle Logs Channel",
+            label: "$(output) Show yaKaggle Logs Channel",
             description: "Open extension output log",
             action: () => OutputChannelManager.show(false),
           },
@@ -38,12 +37,11 @@ export function registerStatusCommands(
                   "Enter Kaggle kernel slug (e.g. username/notebook-name):",
                 placeHolder: "username/my-kernel-slug",
               });
-              if (slug) monitor.registerRunningKernel(slug);
+              if (slug) monitor.registerRunningKernel(slug.trim());
             },
           },
         ];
 
-        // Add individual tracked kernels
         if (tracked.length > 0) {
           items.push({
             label: "Active Kernels",
@@ -55,7 +53,7 @@ export function registerStatusCommands(
             items.push({
               label: `$(play) ${t.slug}`,
               description: `State: ${t.lastKnownState.toUpperCase()}`,
-              detail: `Running since ${t.startTime.toLocaleTimeString()}`,
+              detail: `Tracking since ${t.startTime.toLocaleTimeString()}`,
               action: async () => {
                 const selected = await vscode.window.showQuickPick(
                   [
@@ -94,10 +92,10 @@ export function registerStatusCommands(
         }
 
         const chosen = await vscode.window.showQuickPick(items, {
-          placeHolder: "Kaggle Dynamics Monitor Actions",
+          placeHolder: "yaKaggle Monitor Actions",
         });
 
-        if (chosen && chosen.action) {
+        if (chosen?.action) {
           chosen.action();
         }
       },

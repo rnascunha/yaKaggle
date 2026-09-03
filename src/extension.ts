@@ -12,8 +12,12 @@ import { registerKernelCommands } from "./commands/kernelCommands";
 import { registerDatasetCommands } from "./commands/datasetCommands";
 import { registerCompetitionCommands } from "./commands/competitionCommands";
 import { registerBrowserCommands } from "./commands/browserCommands";
+import { KagglePathResolver } from "./services/kagglePathResolver";
 
 export function activate(context: vscode.ExtensionContext) {
+  // Initialize path resolver cache listeners
+  KagglePathResolver.register(context);
+  
   // 1. Output Channel & Status Monitor
   const statusMonitor = new KernelStatusMonitor(context);
   context.subscriptions.push(statusMonitor);
@@ -52,8 +56,4 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }),
   );
-}
-
-export function deactivate() {
-  OutputChannelManager.dispose();
 }

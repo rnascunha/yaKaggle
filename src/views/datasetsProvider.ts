@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import * as path from "path";
 import { WorkspaceScanner } from "../services/workspaceScanner";
 import { KaggleCliService, RemoteDatasetFileItem } from "../services/kaggleCli";
 import { LocalDatasetMetadata } from "../services/workspaceScanner";
@@ -21,11 +20,13 @@ export class DatasetsProvider implements vscode.TreeDataProvider<KaggleDatasetTr
   >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+  private cachedRemoteDatasets: any[] | null = null;
   private remoteFilesCache: Map<string, RemoteDatasetFileItem[]> = new Map();
   private remoteFilesVisibleCount: Map<string, number> = new Map();
   private readonly filesPageSize = 15;
 
   refresh(): void {
+    this.cachedRemoteDatasets = null;
     this.remoteFilesCache.clear();
     this.remoteFilesVisibleCount.clear();
     this._onDidChangeTreeData.fire();
@@ -120,8 +121,15 @@ export class DatasetsProvider implements vscode.TreeDataProvider<KaggleDatasetTr
     // 2. Remote Datasets Group
     if (element.contextValue === "group_remote_datasets") {
       try {
-        const rawRemote = await KaggleCliService.listRemoteDatasets();
-        if (!rawRemote || rawRemote.length === 0) {
+        if (!this.cachedRemoteDatasets) {
+          this.cachedRemoteDatasets =
+            await KaggleCliService.listRemoteDatasets();
+        }
+
+        if (
+          !this.cachedRemoteDatasets ||
+          this.cachedRemoteDatasets.length === 0
+        ) {
           const item = new KaggleDatasetTreeItem(
             "No remote datasets found",
             vscode.TreeItemCollapsibleState.None,
@@ -131,8 +139,8 @@ export class DatasetsProvider implements vscode.TreeDataProvider<KaggleDatasetTr
           return [item];
         }
 
-        return rawRemote.map((r: any) => {
-          const fullRef = r.ref || ""; // e.g. "rnascunha/smartphone-addiction-scripts"
+        return this.cachedRemoteDatasets.map((r: any) => {
+          const fullRef = r.ref || "";
           const displayTitle =
             r.title && r.title.length > 0
               ? r.title
@@ -147,8 +155,9 @@ export class DatasetsProvider implements vscode.TreeDataProvider<KaggleDatasetTr
             { ...r, ref: fullRef, type: "dataset" },
           );
 
+          const votes = r.votecount || r.votes || "0";
           item.description = fullRef;
-          item.tooltip = `Dataset: ${displayTitle}\nRef: ${fullRef}\nSize: ${r.size || "N/A"}\nVotes: ${r.votecount || r.votes || "0"}`;
+          item.tooltip = `Dataset: ${displayTitle}\nRef: ${fullRef}\nSize: ${r.size || "N/A"}\nVotes: ${votes}`;
           item.iconPath = new vscode.ThemeIcon("cloud");
           return item;
         });
@@ -195,10 +204,9 @@ export class DatasetsProvider implements vscode.TreeDataProvider<KaggleDatasetTr
       const visibleFiles = allFiles.slice(0, visibleCount);
       const items: KaggleDatasetTreeItem[] = visibleFiles.map((f) => {
         const isNested = f.name.includes("/") || f.name.includes("\\");
-        const fileName = isNested ? f.name : f.name;
 
         const fileItem = new KaggleDatasetTreeItem(
-          fileName,
+          f.name,
           vscode.TreeItemCollapsibleState.None,
           "remoteDatasetFile",
           { ...f, parentSlug: slug },
@@ -215,7 +223,7 @@ export class DatasetsProvider implements vscode.TreeDataProvider<KaggleDatasetTr
       if (visibleCount < allFiles.length) {
         const remaining = allFiles.length - visibleCount;
         const moreItem = new KaggleDatasetTreeItem(
-          `... Load More Files (${remaining} remaining)`,
+          `... Load More (${remaining} remaining)`,
           vscode.TreeItemCollapsibleState.None,
           "loadMoreDatasetFiles",
           { slug },
