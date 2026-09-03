@@ -93,6 +93,13 @@ export class KernelStatusMonitor implements vscode.Disposable {
             await this.fetchAndShowKernelOutput(slug, state);
             this.activeKernels.delete(slug); // Stop tracking finished jobs
           }
+          if (
+            state !== "running" &&
+            state !== "queued" &&
+            this.activeKernels.has(slug)
+          ) {
+            this.unregisterKernel(slug);
+          }
         } catch (err: any) {
           OutputChannelManager.appendLine(
             `[Error] Failed to poll status for '${slug}': ${err.message}`,

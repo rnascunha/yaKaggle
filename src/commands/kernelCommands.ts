@@ -323,7 +323,6 @@ export function registerKernelCommands(
     ),
   );
 
-
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.pushKernel",
