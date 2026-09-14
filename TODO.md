@@ -5,9 +5,9 @@ Kernels
 - Kernel missing metadata file when pushing. Probably error of focus.
 - Kernel open page not opening current running page. Opening last successful run.
 - Output while running not correct. Check parcial log.
-- List local kernels in a stable way.
-- Use dropdown menu. Too many options.
-- Delete remote kernel (with popup option to confirm)
+- ~~List local kernels in a stable way.~~
+- ~~Use dropdown menu. Too many options.~~
+- ~~Delete remote kernel (with popup option to confirm)~~
 - Show open link button
 
 Datasets

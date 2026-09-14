@@ -523,4 +523,194 @@ export function registerKernelCommands(
       },
     ),
   );
+
+  // Dropdown QuickPick Menu for Kernels
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "yaKaggle.kernelActionsMenu",
+      async (item?: KaggleKernelTreeItem) => {
+        if (!item) return;
+
+        const contextVal = item.contextValue || "";
+        const slug = item.data?.id || item.data?.ref || item.label || "Kernel";
+
+        interface KernelMenuOption extends vscode.QuickPickItem {
+          commandId: string;
+          args?: any[];
+        }
+
+        const options: KernelMenuOption[] = [];
+
+        if (contextVal === "localKernel") {
+          options.push(
+            {
+              label: "$(cloud-upload) Push Kernel to Kaggle",
+              description: "Upload code and trigger remote execution",
+              commandId: "yaKaggle.pushKernel",
+              args: [item],
+            },
+            {
+              label: "$(edit) Edit kernel-metadata.json",
+              description: "Open local configuration in editor",
+              commandId: "yaKaggle.openMetadata",
+              args: [item],
+            },
+            {
+              label: "$(link-external) Open on Kaggle",
+              description: "View kernel page in default browser",
+              commandId: "yaKaggle.openInBrowser",
+              args: [item],
+            },
+          );
+        } else if (contextVal === "remoteKernel") {
+          options.push(
+            {
+              label: "$(cloud-download) Pull to In-Memory Buffer",
+              description: "Preview notebook without creating local files",
+              commandId: "yaKaggle.pullRemoteKernelUnsaved",
+              args: [item],
+            },
+            {
+              label: "$(output) View Kernel Output Logs",
+              description: "Fetch status and print logs to output channel",
+              commandId: "yaKaggle.viewKernelOutput",
+              args: [item],
+            },
+            {
+              label: "$(desktop-download) Download Output Artifacts",
+              description: "Download models, charts, and generated CSVs",
+              commandId: "yaKaggle.downloadKernelFiles",
+              args: [item],
+            },
+            {
+              label: "$(link-external) Open on Kaggle",
+              description: "View remote notebook on kaggle.com",
+              commandId: "yaKaggle.openInBrowser",
+              args: [item],
+            },
+            {
+              label: "$(trash) Delete Remote Kernel",
+              description: "Permanently delete this notebook from Kaggle",
+              commandId: "yaKaggle.deleteKernel",
+              args: [item],
+            },
+          );
+        } else if (contextVal === "runningKernel") {
+          options.push(
+            {
+              label: "$(output) View Kernel Output Logs",
+              description: "Fetch live execution logs",
+              commandId: "yaKaggle.viewKernelOutput",
+              args: [item],
+            },
+            {
+              label: "$(play-circle) Check Running Status",
+              description: "Poll current state from Kaggle API",
+              commandId: "yaKaggle.kernelStatus",
+              args: [item],
+            },
+            {
+              label: "$(desktop-download) Download Output Artifacts",
+              description: "Download available outputs and models",
+              commandId: "yaKaggle.downloadKernelFiles",
+              args: [item],
+            },
+            {
+              label: "$(link-external) Open on Kaggle",
+              description: "View live run on kaggle.com",
+              commandId: "yaKaggle.openInBrowser",
+              args: [item],
+            },
+            {
+              label: "$(trash) Stop Tracking",
+              description: "Remove from status monitor without stopping run",
+              commandId: "yaKaggle.untrackKernel",
+              args: [item],
+            },
+          );
+        }
+
+        const picked = await vscode.window.showQuickPick(options, {
+          placeHolder: `Actions for ${slug}`,
+        });
+
+        if (picked) {
+          if (picked.commandId === "yaKaggle.untrackKernel") {
+            statusMonitor.unregisterKernel(slug);
+          } else {
+            vscode.commands.executeCommand(
+              picked.commandId,
+              ...(picked.args || []),
+            );
+          }
+        }
+      },
+    ),
+  );
+
+  // 10. Delete Remote Kernel (with Modal Confirmation)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "yaKaggle.deleteKernel",
+      async (item?: KaggleKernelTreeItem) => {
+        let slug = item?.data?.ref || item?.data?.id;
+
+        if (!slug) {
+          const input = await vscode.window.showInputBox({
+            prompt: "Enter Kaggle kernel slug to delete (username/kernel-name)",
+          });
+          if (!input) return;
+          slug = input.trim();
+        }
+
+        // Modal popup confirmation
+        const confirm = await vscode.window.showWarningMessage(
+          `Are you sure you want to delete '${slug}' from Kaggle? This action cannot be undone.`,
+          { modal: true },
+          "Delete",
+        );
+
+        if (confirm !== "Delete") {
+          return;
+        }
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Deleting kernel '${slug}' from Kaggle...`,
+            cancellable: true,
+          },
+          async (_, token) => {
+            try {
+              OutputChannelManager.appendLine(
+                `[CLI] Deleting remote kernel '${slug}'...`,
+              );
+              const result = await KernelOperationsService.deleteKernel(
+                slug,
+                token,
+              );
+              OutputChannelManager.appendLine(
+                `[CLI] ${result || "Kernel deleted successfully."}`,
+              );
+
+              statusMonitor.unregisterKernel(slug);
+              kernelsProvider.refresh();
+
+              vscode.window.showInformationMessage(
+                `Kaggle kernel '${slug}' has been deleted.`,
+              );
+            } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
+              OutputChannelManager.appendLine(
+                `[Error] Failed to delete kernel '${slug}': ${err.message}`,
+              );
+              vscode.window.showErrorMessage(
+                `Failed to delete kernel: ${err.message}`,
+              );
+            }
+          },
+        );
+      },
+    ),
+  );
 }

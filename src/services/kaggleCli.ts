@@ -441,6 +441,18 @@ export class KernelOperationsService {
       isNotebook,
     };
   }
+
+  public static async deleteKernel(
+    kernelSlug: string,
+    token?: vscode.CancellationToken,
+  ): Promise<string> {
+    // -y flag bypasses CLI interactive confirmation so VS Code controls the prompt
+    return await KaggleCliService.execute(
+      ["kernels", "delete", kernelSlug, "-y"],
+      undefined,
+      token,
+    );
+  }
 }
 
 export class DatasetOperationsService {
