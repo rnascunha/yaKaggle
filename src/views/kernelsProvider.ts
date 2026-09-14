@@ -137,6 +137,7 @@ export class KernelsProvider implements vscode.TreeDataProvider<KaggleKernelTree
           "localKernel",
           k,
         );
+        item.id = `local_kernel_${k.metadataPath.fsPath}`;
         item.description = path.dirname(k.metadataPath.fsPath);
         item.iconPath = new vscode.ThemeIcon("notebook");
         return item;
@@ -151,6 +152,7 @@ export class KernelsProvider implements vscode.TreeDataProvider<KaggleKernelTree
         "codeFile",
         k,
       );
+      codeItem.id = `local_code_${k.codeFilePath.fsPath}`;
       codeItem.iconPath = k.codeFileExists
         ? new vscode.ThemeIcon("file-code")
         : new vscode.ThemeIcon(
@@ -171,6 +173,7 @@ export class KernelsProvider implements vscode.TreeDataProvider<KaggleKernelTree
         "metaFile",
         k,
       );
+      metaItem.id = `local_meta_${k.metadataPath.fsPath}`;
       metaItem.iconPath = new vscode.ThemeIcon("json");
       metaItem.command = {
         command: "vscode.open",
