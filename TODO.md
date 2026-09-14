@@ -8,6 +8,7 @@ Kernels
 - List local kernels in a stable way.
 - Use dropdown menu. Too many options.
 - Delete remote kernel (with popup option to confirm)
+- Show open link button
 
 Datasets
 
