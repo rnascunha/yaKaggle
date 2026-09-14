@@ -413,7 +413,7 @@ export function registerKernelCommands(
             ? item.fsPath
             : path.dirname(item.fsPath);
         }
-        // 2. TreeView Item holding metadataPath as Uri (CRITICAL FIX)
+        // 2. TreeView Item holding metadataPath as Uri
         else if (item?.data?.metadataPath instanceof vscode.Uri) {
           targetDir = path.dirname(item.data.metadataPath.fsPath);
         } else if (
@@ -493,13 +493,22 @@ export function registerKernelCommands(
               );
               OutputChannelManager.appendLine(`[Push] Output:\n${result}`);
 
+              const buttons = kernelSlug
+                ? ["Open on Kaggle", "View Logs"]
+                : ["View Logs"];
+
               vscode.window
                 .showInformationMessage(
                   `Kernel successfully pushed to Kaggle!`,
-                  "View Logs",
+                  ...buttons,
                 )
                 .then((choice) => {
-                  if (choice === "View Logs") {
+                  if (choice === "Open on Kaggle") {
+                    const targetUrl = kernelSlug.startsWith("http")
+                      ? kernelSlug
+                      : `https://www.kaggle.com/code/${kernelSlug}`;
+                    vscode.env.openExternal(vscode.Uri.parse(targetUrl));
+                  } else if (choice === "View Logs") {
                     OutputChannelManager.show();
                   }
                 });
@@ -523,6 +532,135 @@ export function registerKernelCommands(
       },
     ),
   );
+
+  // context.subscriptions.push(
+  //   vscode.commands.registerCommand(
+  //     "yaKaggle.pushKernel",
+  //     async (item?: any) => {
+  //       let targetDir: string | undefined;
+
+  //       // 1. Direct Uri invocation (editor title icon or Explorer context menu)
+  //       if (item instanceof vscode.Uri) {
+  //         const stat = fs.statSync(item.fsPath);
+  //         targetDir = stat.isDirectory()
+  //           ? item.fsPath
+  //           : path.dirname(item.fsPath);
+  //       } else if (item?.fsPath && typeof item.fsPath === "string") {
+  //         const stat = fs.statSync(item.fsPath);
+  //         targetDir = stat.isDirectory()
+  //           ? item.fsPath
+  //           : path.dirname(item.fsPath);
+  //       }
+  //       // 2. TreeView Item holding metadataPath as Uri (CRITICAL FIX)
+  //       else if (item?.data?.metadataPath instanceof vscode.Uri) {
+  //         targetDir = path.dirname(item.data.metadataPath.fsPath);
+  //       } else if (
+  //         item?.data?.metadataPath &&
+  //         typeof item.data.metadataPath === "string"
+  //       ) {
+  //         targetDir = path.dirname(item.data.metadataPath);
+  //       } else if (
+  //         item?.data?.folderPath &&
+  //         typeof item.data.folderPath === "string"
+  //       ) {
+  //         targetDir = item.data.folderPath;
+  //       }
+  //       // 3. TreeView Item holding resourceUri
+  //       else if (item?.resourceUri instanceof vscode.Uri) {
+  //         const stat = fs.statSync(item.resourceUri.fsPath);
+  //         targetDir = stat.isDirectory()
+  //           ? item.resourceUri.fsPath
+  //           : path.dirname(item.resourceUri.fsPath);
+  //       }
+  //       // 4. Fallback: Check Active Editor
+  //       else if (vscode.window.activeTextEditor?.document?.uri?.fsPath) {
+  //         const activePath = vscode.window.activeTextEditor.document.uri.fsPath;
+  //         targetDir = path.dirname(activePath);
+  //       }
+  //       // 5. Fallback: Workspace folder scanning
+  //       else if (
+  //         vscode.workspace.workspaceFolders &&
+  //         vscode.workspace.workspaceFolders.length > 0
+  //       ) {
+  //         targetDir = vscode.workspace.workspaceFolders[0].uri.fsPath;
+  //       }
+
+  //       if (!targetDir || typeof targetDir !== "string") {
+  //         vscode.window.showErrorMessage(
+  //           "Could not determine folder to push. Select a kernel from the tree view or open a file inside the kernel folder.",
+  //         );
+  //         return;
+  //       }
+
+  //       const metadataPath = path.join(targetDir, "kernel-metadata.json");
+  //       if (!fs.existsSync(metadataPath)) {
+  //         vscode.window.showErrorMessage(
+  //           `Missing 'kernel-metadata.json' in "${targetDir}". Run 'yaKaggle: Initialize Kernel Metadata' first.`,
+  //         );
+  //         return;
+  //       }
+
+  //       let kernelSlug = "";
+  //       try {
+  //         const rawContent = fs.readFileSync(metadataPath, "utf-8");
+  //         const metadataContent = JSON.parse(rawContent);
+  //         kernelSlug = metadataContent.id || metadataContent.id_no || "";
+  //       } catch (err: any) {
+  //         vscode.window.showErrorMessage(
+  //           `Failed to parse kernel-metadata.json: ${err.message}`,
+  //         );
+  //         return;
+  //       }
+
+  //       OutputChannelManager.show(false);
+  //       OutputChannelManager.appendLine(
+  //         `[Push] Pushing kernel from directory: ${targetDir}...`,
+  //       );
+
+  //       await vscode.window.withProgress(
+  //         {
+  //           location: vscode.ProgressLocation.Notification,
+  //           title: `Pushing kernel to Kaggle (${kernelSlug || path.basename(targetDir)})...`,
+  //           cancellable: true,
+  //         },
+  //         async (_, token) => {
+  //           try {
+  //             const result = await KaggleCliService.pushKernel(
+  //               targetDir!,
+  //               token,
+  //             );
+  //             OutputChannelManager.appendLine(`[Push] Output:\n${result}`);
+
+  //             vscode.window
+  //               .showInformationMessage(
+  //                 `Kernel successfully pushed to Kaggle!`,
+  //                 "View Logs",
+  //               )
+  //               .then((choice) => {
+  //                 if (choice === "View Logs") {
+  //                   OutputChannelManager.show();
+  //                 }
+  //               });
+
+  //             if (kernelSlug) {
+  //               statusMonitor.registerRunningKernel(kernelSlug);
+  //             }
+
+  //             kernelsProvider.refresh();
+  //           } catch (err: any) {
+  //             if (err instanceof vscode.CancellationError) return;
+  //             OutputChannelManager.appendLine(
+  //               `[Error] Kernel push failed: ${err.message}`,
+  //             );
+  //             vscode.window.showErrorMessage(
+  //               `Kernel push failed: ${err.message}`,
+  //             );
+  //           }
+  //         },
+  //       );
+  //     },
+  //   ),
+  // );
 
   // Dropdown QuickPick Menu for Kernels
   context.subscriptions.push(

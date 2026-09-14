@@ -8,7 +8,7 @@ Kernels
 - ~~List local kernels in a stable way.~~
 - ~~Use dropdown menu. Too many options.~~
 - ~~Delete remote kernel (with popup option to confirm)~~
-- Show open link button
+- ~~Show open link button~~
 
 Datasets
 
@@ -20,6 +20,7 @@ Datasets
 Datasets,Kernels
 
 - When create a new kernel/dataset, fill with username (and not with "username" placeholder)
+- Add actions (right mouse button) directly at \*-metadata.json files in files view.
 
 Internal
 
