@@ -5,15 +5,20 @@ Kernels
 - Kernel missing metadata file when pushing. Probably error of focus.
 - Kernel open page not opening current running page. Opening last successful run.
 - Output while running not correct. Check parcial log.
+- List local kernels in a stable way.
+- Use dropdown menu. Too many options.
+- Delete remote kernel (with popup option to confirm)
 
 Datasets
 
 - When update dataset fail, fallback to create
+- Delete Dataset
+- Dataset view not showing folders
+- Zip dataset before send it. Too long to send.
 
 Datasets,Kernels
 
 - When create a new kernel/dataset, fill with username (and not with "username" placeholder)
-- Delete Dataset
 
 Internal
 
