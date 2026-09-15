@@ -40,6 +40,11 @@
     "configuration": {
       "title": "yaKaggle",
       "properties": {
+        "yaKaggle.username": {
+          "type": "string",
+          "default": "",
+          "description": "Your Kaggle username. Used as the default author/slug prefix when initializing new datasets and kernels (e.g., username/slug)."
+        },
         "yaKaggle.kagglePath": {
           "type": "string",
           "default": "",
@@ -91,6 +96,11 @@
       }
     ],
     "commands": [
+      {
+        "command": "yaKaggle.setUsername",
+        "title": "Set Kaggle Username",
+        "category": "yaKaggle"
+      },
       {
         "command": "yaKaggle.refreshAll",
         "title": "Refresh All",

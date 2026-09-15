@@ -90,8 +90,9 @@ export function registerDatasetCommands(
         });
         if (!title) return;
 
-        const creds = CredentialsManager.inspectCredentials();
-        const defaultUser = creds.username || "username";
+        // const creds = CredentialsManager.inspectCredentials();
+        // const defaultUser = creds.username || "username";
+        const defaultUser = CredentialsManager.getUsername();
         const defaultSlug = title
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")

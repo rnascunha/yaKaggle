@@ -78,4 +78,43 @@ export function registerConfigCommands(context: vscode.ExtensionContext): void {
       }
     }),
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("yaKaggle.setUsername", async () => {
+      const current = vscode.workspace
+        .getConfiguration("yaKaggle")
+        .get<string>("username", "");
+
+      const input = await vscode.window.showInputBox({
+        prompt:
+          "Enter your Kaggle username (used for slugs and author attribution)",
+        placeHolder: "e.g., rnascunha",
+        value: current,
+        validateInput: (val) => {
+          if (val.trim().length > 0 && !/^[a-zA-Z0-9_-]+$/.test(val.trim())) {
+            return "Kaggle usernames can only contain alphanumeric characters, underscores, and dashes.";
+          }
+          return null;
+        },
+      });
+
+      if (input !== undefined) {
+        const target =
+          vscode.workspace.workspaceFolders &&
+          vscode.workspace.workspaceFolders.length > 0
+            ? vscode.ConfigurationTarget.Workspace
+            : vscode.ConfigurationTarget.Global;
+
+        await vscode.workspace
+          .getConfiguration("yaKaggle")
+          .update("username", input.trim(), target);
+
+        vscode.window.showInformationMessage(
+          input.trim()
+            ? `Kaggle username set to '${input.trim()}'.`
+            : "Kaggle username cleared (using default fallback).",
+        );
+      }
+    }),
+  );
 }

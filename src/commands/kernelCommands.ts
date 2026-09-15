@@ -89,8 +89,14 @@ export function registerKernelCommands(
             : "python";
       }
 
-      const creds = CredentialsManager.inspectCredentials();
-      const defaultUser = creds.username || "username";
+      // const creds = CredentialsManager.inspectCredentials();
+      // const defaultUser = creds.username || "username";
+      const defaultUser = CredentialsManager.getUsername();
+
+      // const slug = await vscode.window.showInputBox({
+      //   prompt: "Enter the kernel slug (id)",
+      //   value: `${defaultUser}/${defaultSlug}`,
+      // });
 
       const title = await vscode.window.showInputBox({
         prompt: "Enter the title for your Kaggle Kernel",

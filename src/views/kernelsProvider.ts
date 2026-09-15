@@ -221,7 +221,7 @@ export class KernelsProvider implements vscode.TreeDataProvider<KaggleKernelTree
 
       if (this.hasMoreRemote) {
         const moreItem = new KaggleKernelTreeItem(
-          "... Load More Kernels",
+          "... Load More",
           vscode.TreeItemCollapsibleState.None,
           "loadMore",
         );

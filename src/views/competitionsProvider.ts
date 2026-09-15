@@ -102,7 +102,7 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
 
       if (this.hasMoreGeneral) {
         const moreItem = new KaggleCompetitionTreeItem(
-          "... Load More Competitions",
+          "... Load More",
           vscode.TreeItemCollapsibleState.None,
           "loadMoreCompetitions",
         );

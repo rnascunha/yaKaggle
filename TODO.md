@@ -19,10 +19,10 @@ Datasets
 
 Datasets,Kernels
 
-- When create a new kernel/dataset, fill with username (and not with "username" placeholder)
+- ~~When create a new kernel/dataset, fill with username (and not with "username" placeholder)~~. Possibility to manually configure username
 - Add actions (right mouse button) directly at \*-metadata.json files in files view.
 
 Internal
 
 - Use http request instead of KaggleCLI interface.
-- Update CI/CD github actions. Run release triggered by main when version is updated and after ci.yml.
+- [x] ~~Update CI/CD github actions. Run release triggered by main when version is updated and after ci.yml.~~

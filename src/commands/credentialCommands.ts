@@ -112,17 +112,49 @@ export function registerCredentialCommands(
         const tokenInput = await vscode.window.showInputBox({
           prompt: "Paste your Kaggle API token string",
           password: true,
-          placeHolder: "eyJhbGciOi...",
+          placeHolder: "API token string...",
         });
         if (!tokenInput || tokenInput.trim().length === 0) return;
 
         const savedPath = await CredentialsManager.saveCredentials(
           tokenInput.trim(),
         );
+
+        // Prompt for username configuration
+        const usernameInput = await vscode.window.showInputBox({
+          prompt: "Enter your Kaggle username (optional, used for slugs):",
+          placeHolder: "e.g., rnascunha",
+        });
+        if (usernameInput && usernameInput.trim().length > 0) {
+          await vscode.workspace
+            .getConfiguration("yaKaggle")
+            .update(
+              "username",
+              usernameInput.trim(),
+              vscode.ConfigurationTarget.Global,
+            );
+        }
+
         vscode.window.showInformationMessage(`Token stored in ${savedPath}`);
         vscode.commands.executeCommand("yaKaggle.verifyCredentials");
         return;
       }
+
+      // if (action.label.includes("Paste API Access Token")) {
+      //   const tokenInput = await vscode.window.showInputBox({
+      //     prompt: "Paste your Kaggle API token string",
+      //     password: true,
+      //     placeHolder: "eyJhbGciOi...",
+      //   });
+      //   if (!tokenInput || tokenInput.trim().length === 0) return;
+
+      //   const savedPath = await CredentialsManager.saveCredentials(
+      //     tokenInput.trim(),
+      //   );
+      //   vscode.window.showInformationMessage(`Token stored in ${savedPath}`);
+      //   vscode.commands.executeCommand("yaKaggle.verifyCredentials");
+      //   return;
+      // }
 
       if (action.label.includes("Import Credentials File")) {
         const uris = await vscode.window.showOpenDialog({

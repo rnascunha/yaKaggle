@@ -63,110 +63,192 @@ export class CredentialsManager {
   }
 
   /**
+   * Resolves the active Kaggle username.
+   * Priority:
+   * 1. VS Code configuration (`yaKaggle.username`)
+   * 2. Username found in credentials file (e.g. legacy kaggle.json)
+   * 3. Fallback default: "username"
+   */
+  public static getUsername(): string {
+    const configUser = vscode.workspace
+      .getConfiguration("yaKaggle")
+      .get<string>("username", "")
+      .trim();
+
+    if (configUser.length > 0) {
+      return configUser;
+    }
+
+    const creds = this.inspectCredentials();
+    if (creds.username && creds.username.trim().length > 0) {
+      return creds.username.trim();
+    }
+
+    return "username";
+  }
+
+  /**
    * Inspects credentials, checking access_token first and falling back to kaggle.json.
    */
   public static inspectCredentials(): CredentialStatus {
-    const accessTokenPath = this.getAccessTokenPath();
-    const legacyPath = this.getLegacyCredentialsPath();
+    const configDir = this.getKaggleConfigDir();
+    const accessPath = path.join(configDir, "access_token");
+    const jsonPath = path.join(configDir, "kaggle.json");
 
-    // 1. Check for modern ~/.kaggle/access_token
-    if (fs.existsSync(accessTokenPath)) {
-      try {
-        const rawContent = fs.readFileSync(accessTokenPath, "utf8").trim();
+    // Check configuration setting first for username
+    const configuredUser = vscode.workspace
+      .getConfiguration("yaKaggle")
+      .get<string>("username", "")
+      .trim();
 
-        if (rawContent.length > 0) {
-          const permissionsCorrect = this.checkFilePermissions(accessTokenPath);
-
-          // Handle edge-case: user pasted kaggle.json contents into access_token
-          if (rawContent.startsWith("{") && rawContent.endsWith("}")) {
-            try {
-              const parsed: KaggleToken = JSON.parse(rawContent);
-              if (parsed.username && parsed.key) {
-                return {
-                  exists: true,
-                  filePath: accessTokenPath,
-                  isValidJson: true,
-                  format: "kaggle.json",
-                  username: parsed.username,
-                  permissionsCorrect,
-                };
-              }
-            } catch {
-              // Fall through to plain token handling if JSON parsing fails
-            }
-          }
-
-          const username = this.extractUsernameFromJwt(rawContent);
-
-          return {
-            exists: true,
-            filePath: accessTokenPath,
-            isValidJson: true, // Marked true so legacy checks treat it as valid credentials
-            format: "access_token",
-            username,
-            permissionsCorrect,
-          };
-        }
-      } catch (err: any) {
-        return {
-          exists: true,
-          filePath: accessTokenPath,
-          isValidJson: false,
-          permissionsCorrect: false,
-          error: `Failed to read access_token: ${err.message}`,
-        };
-      }
+    if (fs.existsSync(accessPath)) {
+      const perms = this.checkFilePermissions(accessPath);
+      return {
+        exists: true,
+        filePath: accessPath,
+        format: "access_token",
+        isValidJson: true,
+        permissionsCorrect: perms,
+        username: configuredUser || undefined,
+      };
     }
 
-    // 2. Fall back to legacy ~/.kaggle/kaggle.json
-    if (fs.existsSync(legacyPath)) {
+    if (fs.existsSync(jsonPath)) {
       try {
-        const content = fs.readFileSync(legacyPath, "utf8");
-        const parsed: KaggleToken = JSON.parse(content);
-        const permissionsCorrect = this.checkFilePermissions(legacyPath);
-
-        if (!parsed.username || !parsed.key) {
-          return {
-            exists: true,
-            filePath: legacyPath,
-            isValidJson: false,
-            format: "kaggle.json",
-            permissionsCorrect,
-            error:
-              'kaggle.json must contain non-empty "username" and "key" fields.',
-          };
-        }
-
+        const raw = fs.readFileSync(jsonPath, "utf8");
+        const parsed = JSON.parse(raw);
+        const perms = this.checkFilePermissions(jsonPath);
         return {
           exists: true,
-          filePath: legacyPath,
-          isValidJson: true,
+          filePath: jsonPath,
           format: "kaggle.json",
-          username: parsed.username,
-          permissionsCorrect,
+          isValidJson: !!(parsed.username && parsed.key),
+          permissionsCorrect: perms,
+          username: configuredUser || parsed.username || undefined,
         };
       } catch (err: any) {
         return {
           exists: true,
-          filePath: legacyPath,
-          isValidJson: false,
+          filePath: jsonPath,
           format: "kaggle.json",
+          isValidJson: false,
           permissionsCorrect: false,
-          error: `JSON parsing failed for kaggle.json: ${err.message}`,
+          error: `JSON parsing failed: ${err.message}`,
         };
       }
     }
 
-    // 3. Neither file exists
     return {
       exists: false,
-      filePath: accessTokenPath,
+      filePath: accessPath,
       isValidJson: false,
       permissionsCorrect: false,
-      error:
-        "No credentials found. Expected ~/.kaggle/access_token or ~/.kaggle/kaggle.json.",
+      username: configuredUser || undefined,
     };
   }
+
+  // public static inspectCredentials(): CredentialStatus {
+  //   const accessTokenPath = this.getAccessTokenPath();
+  //   const legacyPath = this.getLegacyCredentialsPath();
+
+  //   // 1. Check for modern ~/.kaggle/access_token
+  //   if (fs.existsSync(accessTokenPath)) {
+  //     try {
+  //       const rawContent = fs.readFileSync(accessTokenPath, "utf8").trim();
+
+  //       if (rawContent.length > 0) {
+  //         const permissionsCorrect = this.checkFilePermissions(accessTokenPath);
+
+  //         // Handle edge-case: user pasted kaggle.json contents into access_token
+  //         if (rawContent.startsWith("{") && rawContent.endsWith("}")) {
+  //           try {
+  //             const parsed: KaggleToken = JSON.parse(rawContent);
+  //             if (parsed.username && parsed.key) {
+  //               return {
+  //                 exists: true,
+  //                 filePath: accessTokenPath,
+  //                 isValidJson: true,
+  //                 format: "kaggle.json",
+  //                 username: parsed.username,
+  //                 permissionsCorrect,
+  //               };
+  //             }
+  //           } catch {
+  //             // Fall through to plain token handling if JSON parsing fails
+  //           }
+  //         }
+
+  //         const username = this.extractUsernameFromJwt(rawContent);
+
+  //         return {
+  //           exists: true,
+  //           filePath: accessTokenPath,
+  //           isValidJson: true, // Marked true so legacy checks treat it as valid credentials
+  //           format: "access_token",
+  //           username,
+  //           permissionsCorrect,
+  //         };
+  //       }
+  //     } catch (err: any) {
+  //       return {
+  //         exists: true,
+  //         filePath: accessTokenPath,
+  //         isValidJson: false,
+  //         permissionsCorrect: false,
+  //         error: `Failed to read access_token: ${err.message}`,
+  //       };
+  //     }
+  //   }
+
+  //   // 2. Fall back to legacy ~/.kaggle/kaggle.json
+  //   if (fs.existsSync(legacyPath)) {
+  //     try {
+  //       const content = fs.readFileSync(legacyPath, "utf8");
+  //       const parsed: KaggleToken = JSON.parse(content);
+  //       const permissionsCorrect = this.checkFilePermissions(legacyPath);
+
+  //       if (!parsed.username || !parsed.key) {
+  //         return {
+  //           exists: true,
+  //           filePath: legacyPath,
+  //           isValidJson: false,
+  //           format: "kaggle.json",
+  //           permissionsCorrect,
+  //           error:
+  //             'kaggle.json must contain non-empty "username" and "key" fields.',
+  //         };
+  //       }
+
+  //       return {
+  //         exists: true,
+  //         filePath: legacyPath,
+  //         isValidJson: true,
+  //         format: "kaggle.json",
+  //         username: parsed.username,
+  //         permissionsCorrect,
+  //       };
+  //     } catch (err: any) {
+  //       return {
+  //         exists: true,
+  //         filePath: legacyPath,
+  //         isValidJson: false,
+  //         format: "kaggle.json",
+  //         permissionsCorrect: false,
+  //         error: `JSON parsing failed for kaggle.json: ${err.message}`,
+  //       };
+  //     }
+  //   }
+
+  //   // 3. Neither file exists
+  //   return {
+  //     exists: false,
+  //     filePath: accessTokenPath,
+  //     isValidJson: false,
+  //     permissionsCorrect: false,
+  //     error:
+  //       "No credentials found. Expected ~/.kaggle/access_token or ~/.kaggle/kaggle.json.",
+  //   };
+  // }
 
   /**
    * Saves either a JSON token pair or a plain access token string.
