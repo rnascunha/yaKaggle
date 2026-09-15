@@ -257,7 +257,53 @@
         "icon": "$(trash)"
       }
     ],
+    "submenus": [
+      {
+        "id": "yaKaggle.kernelExplorerSubmenu",
+        "label": "yaKaggle"
+      },
+      {
+        "id": "yaKaggle.datasetExplorerSubmenu",
+        "label": "yaKaggle"
+      }
+    ],
     "menus": {
+      "explorer/context": [
+        {
+          "submenu": "yaKaggle.kernelExplorerSubmenu",
+          "when": "resourceFilename == 'kernel-metadata.json'",
+          "group": "yaKaggle"
+        },
+        {
+          "submenu": "yaKaggle.datasetExplorerSubmenu",
+          "when": "resourceFilename == 'dataset-metadata.json'",
+          "group": "yaKaggle"
+        }
+      ],
+      "yaKaggle.kernelExplorerSubmenu": [
+        {
+          "command": "yaKaggle.pushKernel",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "yaKaggle.viewKernelOutput",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "yaKaggle.openInBrowser",
+          "group": "2_links"
+        }
+      ],
+      "yaKaggle.datasetExplorerSubmenu": [
+        {
+          "command": "yaKaggle.updateDataset",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "yaKaggle.openInBrowser",
+          "group": "2_links"
+        }
+      ],
       "view/title": [
         {
           "command": "yaKaggle.refreshAll",

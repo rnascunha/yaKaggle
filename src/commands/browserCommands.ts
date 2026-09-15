@@ -10,6 +10,37 @@ export function registerBrowserCommands(
     vscode.commands.registerCommand(
       "yaKaggle.openInBrowser",
       async (item?: any) => {
+        // 1. Invocation from Explorer right-click (item is a vscode.Uri)
+        if (item instanceof vscode.Uri || item?.fsPath) {
+          const filePath = item.fsPath || item;
+          const basename = path.basename(filePath);
+
+          try {
+            if (basename === "kernel-metadata.json") {
+              const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+              const slug = parsed.id || parsed.id_no;
+              if (slug) {
+                return vscode.env.openExternal(
+                  vscode.Uri.parse(`https://www.kaggle.com/code/${slug}`),
+                );
+              }
+            } else if (basename === "dataset-metadata.json") {
+              const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+              const slug = parsed.id;
+              if (slug) {
+                return vscode.env.openExternal(
+                  vscode.Uri.parse(`https://www.kaggle.com/datasets/${slug}`),
+                );
+              }
+            }
+          } catch (err: any) {
+            vscode.window.showErrorMessage(
+              `Failed to read metadata: ${err.message}`,
+            );
+            return;
+          }
+        }
+
         const data = item?.data;
         const contextVal = item?.contextValue || "";
 

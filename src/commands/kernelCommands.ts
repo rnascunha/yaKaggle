@@ -226,9 +226,70 @@ export function registerKernelCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.viewKernelOutput",
-      async (item?: KaggleKernelTreeItem) => {
-        let slug = item?.data?.id || item?.data?.ref;
+      async (item?: any) => {
+        let slug: string | undefined;
 
+        // 1. Invocation from Explorer context menu (item is a vscode.Uri)
+        if (
+          item instanceof vscode.Uri ||
+          (item && typeof item.fsPath === "string")
+        ) {
+          const targetPath: string = item.fsPath;
+          try {
+            let metadataFile = targetPath;
+            const stat = fs.statSync(targetPath);
+            if (stat.isDirectory()) {
+              metadataFile = path.join(targetPath, "kernel-metadata.json");
+            }
+            if (fs.existsSync(metadataFile)) {
+              const parsed = JSON.parse(fs.readFileSync(metadataFile, "utf-8"));
+              slug = parsed.id || parsed.id_no;
+            }
+          } catch (err: any) {
+            OutputChannelManager.appendLine(
+              `[Error] Could not read metadata file: ${err.message}`,
+            );
+          }
+        }
+        // 2. Invocation from TreeView element
+        else if (item?.data) {
+          slug = item.data.id || item.data.ref || item.data.slug;
+
+          // If invoked on a localKernel node without an inline slug property, read its metadata file
+          if (!slug && item.data.metadataPath) {
+            try {
+              const metaFsPath =
+                item.data.metadataPath instanceof vscode.Uri
+                  ? item.data.metadataPath.fsPath
+                  : item.data.metadataPath;
+              if (fs.existsSync(metaFsPath)) {
+                const parsed = JSON.parse(fs.readFileSync(metaFsPath, "utf-8"));
+                slug = parsed.id || parsed.id_no;
+              }
+            } catch {}
+          }
+        }
+
+        // 3. Fallback: Inspect active editor if command was invoked via Command Palette
+        if (!slug && vscode.window.activeTextEditor) {
+          const activePath = vscode.window.activeTextEditor.document.uri.fsPath;
+          const dir = path.dirname(activePath);
+          const candidateMeta =
+            path.basename(activePath) === "kernel-metadata.json"
+              ? activePath
+              : path.join(dir, "kernel-metadata.json");
+
+          if (fs.existsSync(candidateMeta)) {
+            try {
+              const parsed = JSON.parse(
+                fs.readFileSync(candidateMeta, "utf-8"),
+              );
+              slug = parsed.id || parsed.id_no;
+            } catch {}
+          }
+        }
+
+        // 4. Fallback: QuickPick or InputBox if slug cannot be resolved from context
         if (!slug) {
           const tracked = statusMonitor.getTrackedKernels();
           if (tracked.length > 0) {
@@ -257,8 +318,6 @@ export function registerKernelCommands(
 
         try {
           const rawStatus = await KaggleCliService.getKernelStatus(slug);
-
-          // Synchronize activeKernels tracking in KernelStatusMonitor
           const parsedState = statusMonitor.syncKernelStatus(slug, rawStatus);
 
           OutputChannelManager.appendLine(
@@ -292,6 +351,75 @@ export function registerKernelCommands(
       },
     ),
   );
+  // context.subscriptions.push(
+  //   vscode.commands.registerCommand(
+  //     "yaKaggle.viewKernelOutput",
+  //     async (item?: KaggleKernelTreeItem) => {
+  //       let slug = item?.data?.id || item?.data?.ref;
+
+  //       if (!slug) {
+  //         const tracked = statusMonitor.getTrackedKernels();
+  //         if (tracked.length > 0) {
+  //           const picked = await vscode.window.showQuickPick(
+  //             tracked.map((t) => ({
+  //               label: t.slug,
+  //               description: t.lastKnownState,
+  //             })),
+  //             { placeHolder: "Select a tracked kernel to inspect" },
+  //           );
+  //           if (!picked) return;
+  //           slug = picked.label;
+  //         } else {
+  //           const input = await vscode.window.showInputBox({
+  //             prompt: "Enter Kaggle kernel slug (username/kernel-name)",
+  //           });
+  //           if (!input) return;
+  //           slug = input.trim();
+  //         }
+  //       }
+
+  //       OutputChannelManager.show(false);
+  //       OutputChannelManager.appendLine(
+  //         `[Kernel] Fetching latest status and logs for '${slug}'...`,
+  //       );
+
+  //       try {
+  //         const rawStatus = await KaggleCliService.getKernelStatus(slug);
+
+  //         // Synchronize activeKernels tracking in KernelStatusMonitor
+  //         const parsedState = statusMonitor.syncKernelStatus(slug, rawStatus);
+
+  //         OutputChannelManager.appendLine(
+  //           `[Status] Current Execution State: ${rawStatus.toUpperCase()} [${parsedState.toUpperCase()}]`,
+  //         );
+
+  //         const tempPath = path.join(
+  //           context.globalStorageUri.fsPath,
+  //           "kernel-outputs",
+  //           slug.replace(/[\\/]/g, "_"),
+  //         );
+  //         if (!fs.existsSync(tempPath)) {
+  //           fs.mkdirSync(tempPath, { recursive: true });
+  //         }
+
+  //         const output = await KaggleCliService.getKernelOutput(slug, tempPath);
+  //         OutputChannelManager.appendLine(
+  //           `\n--- Execution Output for ${slug} ---`,
+  //         );
+  //         OutputChannelManager.appendLine(
+  //           output || "No text/stdout logs generated yet.",
+  //         );
+  //         OutputChannelManager.appendLine(
+  //           `-----------------------------------\n`,
+  //         );
+  //       } catch (err: any) {
+  //         OutputChannelManager.appendLine(
+  //           `[Error] Failed to fetch output: ${err.message}`,
+  //         );
+  //       }
+  //     },
+  //   ),
+  // );
 
   // 5. Check Running Status
   context.subscriptions.push(
