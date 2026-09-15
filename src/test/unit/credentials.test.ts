@@ -2,6 +2,7 @@ import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import * as vscode from "vscode";
 import { CredentialsManager } from "../../services/credentialsManager";
 
 suite("Unit Test: CredentialsManager Operations", () => {
@@ -32,7 +33,7 @@ suite("Unit Test: CredentialsManager Operations", () => {
     assert.strictEqual(status.isValidJson, false);
   });
 
-  test("should load and parse modern plain access_token", async () => {
+  test("should load plain access_token without requiring username", async () => {
     await CredentialsManager.saveCredentials("fake-api-token-12345");
     const status = CredentialsManager.inspectCredentials();
 
@@ -41,29 +42,25 @@ suite("Unit Test: CredentialsManager Operations", () => {
     assert.strictEqual(status.isValidJson, true);
   });
 
-  test("should decode username when access_token is a JWT", async () => {
-    const payload = Buffer.from(
-      JSON.stringify({ username: "rnascunha" }),
-    ).toString("base64url");
-    const jwtToken = `eyJhbGciOiJIUzI1NiJ9.${payload}.signature`;
+  test("should fallback to default 'username' when access_token is set without username config", async () => {
+    await CredentialsManager.saveCredentials("fake-api-token-12345");
+    const resolvedUser = CredentialsManager.getUsername();
 
-    await CredentialsManager.saveCredentials(jwtToken);
-    const status = CredentialsManager.inspectCredentials();
-
-    assert.strictEqual(status.exists, true);
-    assert.strictEqual(status.username, "rnascunha");
+    assert.strictEqual(resolvedUser, "username");
   });
 
-  test("should fall back to legacy kaggle.json when access_token is absent", async () => {
+  test("should resolve username from legacy kaggle.json when present", async () => {
     await CredentialsManager.saveCredentials({
       username: "legacyUser",
       key: "secretKey",
     });
     const status = CredentialsManager.inspectCredentials();
+    const resolvedUser = CredentialsManager.getUsername();
 
     assert.strictEqual(status.exists, true);
     assert.strictEqual(status.format, "kaggle.json");
     assert.strictEqual(status.username, "legacyUser");
+    assert.strictEqual(resolvedUser, "legacyUser");
   });
 
   test("should report invalid JSON when kaggle.json is corrupted", () => {
