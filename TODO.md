@@ -13,9 +13,9 @@ Kernels
 Datasets
 
 - When update dataset fail, fallback to create
-- Delete Dataset
-- Dataset view not showing folders
-- Zip dataset before send it. Too long to send.
+- ~~Delete Dataset~~
+- ~~Dataset view not showing folders~~. Remote dataset not showing all files.
+- ~~Zip dataset before send it. Too long to send.~~
 
 Datasets,Kernels
 

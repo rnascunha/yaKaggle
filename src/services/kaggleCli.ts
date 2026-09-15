@@ -2,9 +2,13 @@ import { spawn } from "child_process";
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
+import * as os from "os";
+
 import { parseCsv } from "../utils/csvParser";
 import { KagglePathResolver } from "./kagglePathResolver";
 import { CredentialsManager } from "./credentialsManager";
+import { zipFolderContents } from "../utils/zipUtils";
+import { OutputChannelManager } from "./outputChannelManager";
 
 export class KaggleCliError extends Error {
   public code: number | null;
@@ -275,23 +279,24 @@ export class KaggleCliService {
     });
   }
 
-  public static async pushDataset(
-    folderPath: string,
-    versionNotes?: string,
-    token?: vscode.CancellationToken,
-  ): Promise<string> {
-    const args = [
-      "datasets",
-      "version",
-      "-p",
-      folderPath,
-      "-m",
-      versionNotes || "Update dataset",
-      "--dir-mode",
-      "zip",
-    ];
-    return await this.execute(args, undefined, token);
-  }
+  // public static async pushDataset(
+  //   folderPath: string,
+  //   versionNotes?: string,
+  //   token?: vscode.CancellationToken,
+  // ): Promise<string> {
+  //   const args = [
+  //     "datasets",
+  //     "version",
+  //     "-p",
+  //     folderPath,
+  //     "-m",
+  //     versionNotes || "Update dataset",
+  //     "--dir-mode",
+  //     "zip",
+  //     "-d",
+  //   ];
+  //   return await this.execute(args, undefined, token);
+  // }
 
   public static async downloadDataset(
     datasetSlug: string,
@@ -463,6 +468,94 @@ export class DatasetOperationsService {
     return KaggleCliService.listDatasetFiles(datasetSlug, token);
   }
 
+  public static async pushDataset(
+    folderPath: string,
+    versionNotes?: string,
+    token?: vscode.CancellationToken,
+    onProgress?: (status: string) => void,
+  ): Promise<string> {
+    const metaPath = path.join(folderPath, "dataset-metadata.json");
+    if (!fs.existsSync(metaPath)) {
+      throw new Error(`Missing 'dataset-metadata.json' in "${folderPath}".`);
+    }
+
+    const entries = fs
+      .readdirSync(folderPath)
+      .filter(
+        (name) =>
+          name !== "dataset-metadata.json" &&
+          !name.startsWith(".") &&
+          name !== "node_modules",
+      );
+
+    if (entries.length === 0) {
+      throw new Error("No data files found to upload in dataset folder.");
+    }
+
+    // If folder already contains ONLY zip files, upload directly
+    const onlyZipFiles = entries.every((f) => f.endsWith(".zip"));
+    if (onlyZipFiles) {
+      onProgress?.("Uploading dataset archive...");
+      const args = [
+        "datasets",
+        "version",
+        "-p",
+        folderPath,
+        "-m",
+        versionNotes || "Update dataset",
+        "--dir-mode",
+        "zip",
+        "-d",
+      ];
+      return await KaggleCliService.execute(args, undefined, token);
+    }
+
+    // Create temporary staging directory
+    const stagingDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "yakaggle-ds-upload-"),
+    );
+
+    try {
+      // 1. Copy metadata to staging root
+      fs.copyFileSync(metaPath, path.join(stagingDir, "dataset-metadata.json"));
+
+      // 2. Compress dataset contents (root stripped) into staging zip
+      onProgress?.("Compressing dataset into zip archive...");
+      OutputChannelManager.appendLine(
+        `[Push Dataset] Compressing data files from '${folderPath}'...`,
+      );
+
+      const bundleZipPath = path.join(stagingDir, "dataset_bundle.zip");
+      await zipFolderContents(folderPath, bundleZipPath, token);
+
+      const zipStats = fs.statSync(bundleZipPath);
+      const zipSizeMB = (zipStats.size / (1024 * 1024)).toFixed(2);
+      OutputChannelManager.appendLine(
+        `[Push Dataset] Archive ready (${zipSizeMB} MB). Uploading to Kaggle...`,
+      );
+
+      // 3. Upload from staging
+      onProgress?.(`Uploading compressed archive (${zipSizeMB} MB)...`);
+      const args = [
+        "datasets",
+        "version",
+        "-p",
+        stagingDir,
+        "-m",
+        versionNotes || "Update dataset",
+        "--dir-mode",
+        "zip",
+      ];
+
+      return await KaggleCliService.execute(args, undefined, token);
+    } finally {
+      // 4. Always clean up staging directory
+      try {
+        fs.rmSync(stagingDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+
   public static async downloadDatasetArchive(
     datasetSlug: string,
     destinationDir: string,
@@ -512,5 +605,16 @@ export class DatasetOperationsService {
 
     fs.writeFileSync(metaPath, JSON.stringify(template, null, 2), "utf8");
     return vscode.Uri.file(metaPath);
+  }
+
+  public static async deleteDataset(
+    datasetSlug: string,
+    token?: vscode.CancellationToken,
+  ): Promise<string> {
+    return await KaggleCliService.execute(
+      ["datasets", "delete", datasetSlug, "-y"],
+      undefined,
+      token,
+    );
   }
 }

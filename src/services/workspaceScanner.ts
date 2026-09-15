@@ -16,7 +16,8 @@ export interface LocalDatasetMetadata {
   id: string;
   title: string;
   metadataPath: vscode.Uri;
-  files: { name: string; uri: vscode.Uri; exists: boolean }[];
+  folderUri: vscode.Uri;
+  files?: { name: string; uri: vscode.Uri; exists: boolean }[];
 }
 
 export class WorkspaceScanner {
@@ -61,6 +62,41 @@ export class WorkspaceScanner {
     });
   }
 
+  // public static async findLocalDatasets(): Promise<LocalDatasetMetadata[]> {
+  //   const metaFiles = await vscode.workspace.findFiles(
+  //     "**/dataset-metadata.json",
+  //     "**/node_modules/**",
+  //   );
+  //   const datasets: LocalDatasetMetadata[] = [];
+
+  //   for (const uri of metaFiles) {
+  //     try {
+  //       const raw = await vscode.workspace.fs.readFile(uri);
+  //       const meta = JSON.parse(new TextDecoder().decode(raw));
+  //       const dir = path.dirname(uri.fsPath);
+
+  //       const dirEntries = fs.readdirSync(dir, { withFileTypes: true });
+  //       const dataFiles = dirEntries
+  //         .filter((d) => !d.isDirectory() && d.name !== "dataset-metadata.json")
+  //         .map((d) => ({
+  //           name: d.name,
+  //           uri: vscode.Uri.file(path.join(dir, d.name)),
+  //           exists: true,
+  //         }));
+
+  //       datasets.push({
+  //         id: meta.id || path.basename(dir),
+  //         title: meta.title || meta.id || "Untitled Dataset",
+  //         metadataPath: uri,
+  //         files: dataFiles,
+  //       });
+  //     } catch (err) {
+  //       console.error(`Error reading dataset metadata at ${uri.fsPath}:`, err);
+  //     }
+  //   }
+  //   return datasets;
+  // }
+
   public static async findLocalDatasets(): Promise<LocalDatasetMetadata[]> {
     const metaFiles = await vscode.workspace.findFiles(
       "**/dataset-metadata.json",
@@ -74,25 +110,23 @@ export class WorkspaceScanner {
         const meta = JSON.parse(new TextDecoder().decode(raw));
         const dir = path.dirname(uri.fsPath);
 
-        const dirEntries = fs.readdirSync(dir, { withFileTypes: true });
-        const dataFiles = dirEntries
-          .filter((d) => !d.isDirectory() && d.name !== "dataset-metadata.json")
-          .map((d) => ({
-            name: d.name,
-            uri: vscode.Uri.file(path.join(dir, d.name)),
-            exists: true,
-          }));
-
         datasets.push({
           id: meta.id || path.basename(dir),
           title: meta.title || meta.id || "Untitled Dataset",
           metadataPath: uri,
-          files: dataFiles,
+          folderUri: vscode.Uri.file(dir),
+          files: [],
         });
       } catch (err) {
         console.error(`Error reading dataset metadata at ${uri.fsPath}:`, err);
       }
     }
-    return datasets;
+
+    return datasets.sort((a, b) =>
+      a.id.localeCompare(b.id, undefined, {
+        sensitivity: "base",
+        numeric: true,
+      }),
+    );
   }
 }

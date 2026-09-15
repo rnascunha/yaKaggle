@@ -240,6 +240,11 @@
         "command": "yaKaggle.deleteKernel",
         "title": "Delete Remote Kernel",
         "icon": "$(trash)"
+      },
+      {
+        "command": "yaKaggle.deleteDataset",
+        "title": "Delete Remote Dataset",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -352,6 +357,16 @@
           "group": "inline@3"
         },
         {
+          "command": "yaKaggle.deleteDataset",
+          "when": "view == kaggle-datasets && viewItem == remoteDataset",
+          "group": "inline@4"
+        },
+        {
+          "command": "yaKaggle.deleteDataset",
+          "when": "view == kaggle-datasets && viewItem == remoteDataset",
+          "group": "9_danger"
+        },
+        {
           "command": "yaKaggle.downloadCompetitionData",
           "when": "view == kaggle-competitions && viewItem == competitionItem",
           "group": "inline@1"
@@ -385,6 +400,7 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
+    "@types/archiver": "^8.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.x",
     "@types/vscode": "^1.90.0",
@@ -392,5 +408,8 @@
     "@vscode/vsce": "^3.9.2",
     "mocha": "^12.0.0",
     "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "archiver": "^8.0.0"
   }
 }

@@ -314,12 +314,23 @@ export function registerDatasetCommands(
   );
 
   // 6. Load More Remote Dataset Files
+  // context.subscriptions.push(
+  //   vscode.commands.registerCommand(
+  //     "yaKaggle.loadMoreDatasetFiles",
+  //     (item: KaggleDatasetTreeItem) => {
+  //       if (item?.data?.slug) {
+  //         datasetsProvider.incrementVisibleFiles(item.data.slug);
+  //       }
+  //     },
+  //   ),
+  // );
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "yaKaggle.loadMoreDatasetFiles",
       (item: KaggleDatasetTreeItem) => {
-        if (item?.data?.slug) {
-          datasetsProvider.incrementVisibleFiles(item.data.slug);
+        const target = item?.data?.key || item?.data?.slug;
+        if (target) {
+          datasetsProvider.incrementVisibleFiles(target);
         }
       },
     ),
@@ -363,7 +374,7 @@ export function registerDatasetCommands(
               cancellable: true,
             },
             async (_, token) => {
-              await KaggleCliService.pushDataset(
+              await DatasetOperationsService.pushDataset(
                 filePath,
                 commitMessage,
                 token,
@@ -374,12 +385,99 @@ export function registerDatasetCommands(
             },
           );
         } catch (e: any) {
-          console.log(e)
+          console.log(e);
           if (e instanceof vscode.CancellationError) return;
           vscode.window.showErrorMessage(
             `Error updating dataset '${reportName}': ${e?.message || e}`,
           );
         }
+      },
+    ),
+  );
+
+  // 9. Delete Remote Dataset (with Modal Confirmation)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "yaKaggle.deleteDataset",
+      async (item?: KaggleDatasetTreeItem) => {
+        let slug = item?.data?.ref || item?.data?.id;
+
+        if (!slug) {
+          const input = await vscode.window.showInputBox({
+            prompt:
+              "Enter Kaggle dataset slug to delete (username/dataset-name)",
+            placeHolder: "username/my-dataset",
+          });
+          if (!input) return;
+          slug = input.trim();
+        }
+
+        // Modal popup confirmation
+        const confirm = await vscode.window.showWarningMessage(
+          `Are you sure you want to delete dataset '${slug}' from Kaggle? This action cannot be undone.`,
+          { modal: true },
+          "Delete",
+        );
+
+        if (confirm !== "Delete") {
+          return;
+        }
+
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Deleting dataset '${slug}' from Kaggle...`,
+            cancellable: true,
+          },
+          async (_, token) => {
+            try {
+              OutputChannelManager.appendLine(
+                `[CLI] Deleting remote dataset '${slug}'...`,
+              );
+              const result = await DatasetOperationsService.deleteDataset(
+                slug,
+                token,
+              );
+              OutputChannelManager.appendLine(
+                `[CLI] ${result || "Dataset deleted successfully."}`,
+              );
+
+              datasetsProvider.refresh();
+
+              vscode.window.showInformationMessage(
+                `Kaggle dataset '${slug}' has been deleted.`,
+              );
+            } catch (err: any) {
+              if (err instanceof vscode.CancellationError) return;
+
+              OutputChannelManager.appendLine(
+                `[Error] Failed to delete dataset '${slug}': ${err.message}`,
+              );
+
+              // Helpful fallback if user's installed Kaggle CLI lacks the delete command
+              if (
+                err.message.includes("invalid choice: 'delete'") ||
+                err.message.includes("unrecognized arguments")
+              ) {
+                const choice = await vscode.window.showErrorMessage(
+                  `Your installed Kaggle CLI version does not support deleting datasets. Would you like to open dataset settings on Kaggle to delete it?`,
+                  "Open Dataset Settings",
+                );
+                if (choice === "Open Dataset Settings") {
+                  vscode.env.openExternal(
+                    vscode.Uri.parse(
+                      `https://www.kaggle.com/datasets/${slug}/settings`,
+                    ),
+                  );
+                }
+              } else {
+                vscode.window.showErrorMessage(
+                  `Failed to delete dataset: ${err.message}`,
+                );
+              }
+            }
+          },
+        );
       },
     ),
   );
