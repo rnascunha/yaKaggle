@@ -38,23 +38,38 @@ export class KernelStatusMonitor implements vscode.Disposable {
     this.startPolling();
   }
 
+  /**
+   * Normalizes a kernel slug so underscores in the notebook name are converted
+   * to hyphens (matching Kaggle's URL slug rules: owner/kernel-slug).
+   */
+  public static normalizeSlug(slug: string): string {
+    const clean = (slug || "").trim();
+    if (!clean.includes("/")) {
+      return clean.replace(/_/g, "-").toLowerCase();
+    }
+    const [owner, ...rest] = clean.split("/");
+    const kernelName = rest.join("/").replace(/_/g, "-").toLowerCase();
+    return `${owner}/${kernelName}`;
+  }
+
   public isTracked(slug: string): boolean {
-    return this.activeKernels.has(slug);
+    return this.activeKernels.has(KernelStatusMonitor.normalizeSlug(slug));
   }
 
   public registerRunningKernel(
     slug: string,
     initialState: KernelState = "queued",
   ): void {
-    const existing = this.activeKernels.get(slug);
+    const normalized = KernelStatusMonitor.normalizeSlug(slug);
+    const existing = this.activeKernels.get(normalized);
     if (!existing) {
-      this.activeKernels.set(slug, {
-        slug,
+      this.activeKernels.set(normalized, {
+        slug: normalized,
         lastKnownState: initialState,
         startTime: new Date(),
       });
       OutputChannelManager.appendLine(
-        `[Monitor] Registered kernel '${slug}' for real-time tracking.`,
+        `[Monitor] Registered kernel '${normalized}' for real-time tracking.`,
       );
     } else {
       existing.lastKnownState = initialState;
@@ -64,11 +79,15 @@ export class KernelStatusMonitor implements vscode.Disposable {
   }
 
   public unregisterKernel(slug: string): void {
-    if (this.activeKernels.has(slug)) {
-      this.activeKernels.delete(slug);
+    const normalized = KernelStatusMonitor.normalizeSlug(slug);
+    if (this.activeKernels.has(normalized)) {
+      this.activeKernels.delete(normalized);
       OutputChannelManager.appendLine(
-        `[Monitor] Unregistered kernel '${slug}' from real-time tracking.`,
+        `[Monitor] Unregistered kernel '${normalized}' from real-time tracking.`,
       );
+      this.render();
+    } else if (this.activeKernels.has(slug)) {
+      this.activeKernels.delete(slug);
       this.render();
     }
   }
@@ -133,19 +152,29 @@ export class KernelStatusMonitor implements vscode.Disposable {
           // Auto-fetch output and notify if completed or failed
           if (state === "complete" || state === "error") {
             await this.fetchAndShowKernelOutput(slug, state);
-            this.activeKernels.delete(slug); // Stop tracking finished jobs
-          }
-          if (
-            state !== "running" &&
-            state !== "queued" &&
-            this.activeKernels.has(slug)
-          ) {
+            this.activeKernels.delete(slug);
+          } else if (state !== "running" && state !== "queued") {
             this.unregisterKernel(slug);
           }
         } catch (err: any) {
+          const msg = err?.message || String(err);
           OutputChannelManager.appendLine(
-            `[Error] Failed to poll status for '${slug}': ${err.message}`,
+            `[Error] Failed to poll status for '${slug}': ${msg}`,
           );
+
+          // If the slug is inaccessible or does not exist, stop tracking so it isn't stuck in QUEUED
+          if (
+            msg.includes("kernels.get") ||
+            msg.includes("Cannot access kernel") ||
+            msg.includes("403") ||
+            msg.includes("404") ||
+            msg.includes("Not Found")
+          ) {
+            this.activeKernels.delete(slug);
+            vscode.window.showErrorMessage(
+              `Stopped tracking '${slug}': Kernel slug could not be accessed on Kaggle. Check 'id' in kernel-metadata.json.`,
+            );
+          }
         }
       }
     } finally {

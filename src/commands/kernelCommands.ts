@@ -311,6 +311,7 @@ export function registerKernelCommands(
           }
         }
 
+        slug = KernelStatusMonitor.normalizeSlug(slug);
         OutputChannelManager.show(false);
         OutputChannelManager.appendLine(
           `[Kernel] Fetching latest status and logs for '${slug}'...`,
@@ -357,8 +358,9 @@ export function registerKernelCommands(
     vscode.commands.registerCommand(
       "yaKaggle.kernelStatus",
       async (item?: any) => {
-        const slug = item?.data?.id || item?.data?.ref;
-        if (slug) {
+        const rawSlug = item?.data?.id || item?.data?.ref;
+        if (rawSlug) {
+          const slug = KernelStatusMonitor.normalizeSlug(rawSlug);
           try {
             const rawStatus = await KaggleCliService.getKernelStatus(slug);
             const parsedState = statusMonitor.syncKernelStatus(slug, rawStatus);
@@ -366,6 +368,8 @@ export function registerKernelCommands(
               `Kernel '${slug}' status: ${parsedState.toUpperCase()}`,
             );
           } catch (err: any) {
+            statusMonitor.unregisterKernel(rawSlug);
+            statusMonitor.unregisterKernel(slug);
             vscode.window.showErrorMessage(
               `Failed to get status for ${slug}: ${err.message}`,
             );
@@ -528,15 +532,71 @@ export function registerKernelCommands(
         }
 
         let kernelSlug = "";
+        let codeFileName = "";
         try {
           const rawContent = fs.readFileSync(metadataPath, "utf-8");
           const metadataContent = JSON.parse(rawContent);
           kernelSlug = metadataContent.id || metadataContent.id_no || "";
+          codeFileName = metadataContent.code_file || "";
         } catch (err: any) {
           vscode.window.showErrorMessage(
             `Failed to parse kernel-metadata.json: ${err.message}`,
           );
           return;
+        }
+
+        // Check if the kernel code file is currently opened and has unsaved changes
+        if (codeFileName) {
+          const codeFilePath = path.resolve(targetDir, codeFileName);
+
+          const isSamePath = (p1: string, p2: string) => {
+            const norm1 = path.resolve(p1);
+            const norm2 = path.resolve(p2);
+            return process.platform === "win32"
+              ? norm1.toLowerCase() === norm2.toLowerCase()
+              : norm1 === norm2;
+          };
+
+          // 1. Check open scripts (.py, .r)
+          const textDoc = vscode.workspace.textDocuments.find(
+            (doc) => isSamePath(doc.uri.fsPath, codeFilePath) && doc.isDirty,
+          );
+
+          // 2. Check open Jupyter notebooks (.ipynb)
+          const nbDoc = (vscode.workspace as any).notebookDocuments?.find(
+            (doc: any) =>
+              isSamePath(doc.uri.fsPath, codeFilePath) && doc.isDirty,
+          );
+
+          if (textDoc || nbDoc) {
+            const choice = await vscode.window.showWarningMessage(
+              `The kernel file '${codeFileName}' has unsaved changes. Do you want to save it before pushing?`,
+              { modal: true },
+              "Save and Push",
+              "Push Without Saving",
+            );
+
+            // Abort push if user cancelled or dismissed modal
+            if (!choice) {
+              return;
+            }
+
+            if (choice === "Save and Push") {
+              if (textDoc) {
+                await textDoc.save();
+              }
+              if (nbDoc) {
+                if (typeof nbDoc.save === "function") {
+                  await nbDoc.save();
+                } else {
+                  await vscode.window.showNotebookDocument(nbDoc);
+                  await vscode.commands.executeCommand(
+                    "workbench.action.files.save",
+                  );
+                }
+              }
+            }
+          }
         }
 
         OutputChannelManager.show(false);
@@ -557,6 +617,33 @@ export function registerKernelCommands(
                 token,
               );
               OutputChannelManager.appendLine(`[Push] Output:\n${result}`);
+
+              // Extract actual canonical slug from CLI output URL if present
+              const urlMatch = result.match(
+                /kaggle\.com\/(?:code|kernels)\/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)/i,
+              );
+              const resolvedSlug = urlMatch
+                ? urlMatch[1]
+                : KernelStatusMonitor.normalizeSlug(kernelSlug);
+
+              // Auto-correct kernel-metadata.json if the slug had underscores or differed
+              if (resolvedSlug && resolvedSlug !== kernelSlug) {
+                try {
+                  const rawMeta = JSON.parse(
+                    fs.readFileSync(metadataPath, "utf-8"),
+                  );
+                  rawMeta.id = resolvedSlug;
+                  fs.writeFileSync(
+                    metadataPath,
+                    JSON.stringify(rawMeta, null, 2),
+                    "utf-8",
+                  );
+                  OutputChannelManager.appendLine(
+                    `[Push] Updated kernel-metadata.json id: '${kernelSlug}' ➔ '${resolvedSlug}'`,
+                  );
+                  kernelSlug = resolvedSlug;
+                } catch {}
+              }
 
               const buttons = kernelSlug
                 ? ["Open on Kaggle", "View Logs"]

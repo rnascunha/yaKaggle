@@ -1,10 +1,8 @@
 Kernels
 
+- ~~Before pushing kernel, check if it is open and modified.~~
 - ~~Push kernels not found~~
 - ~~Add graphical (icons/color) to identify kernel states~~
-- Kernel missing metadata file when pushing. Probably error of focus.
-- Kernel open page not opening current running page. Opening last successful run.
-- Output while running not correct. Check parcial log.
 - ~~List local kernels in a stable way.~~
 - ~~Use dropdown menu. Too many options.~~
 - ~~Delete remote kernel (with popup option to confirm)~~
@@ -20,9 +18,22 @@ Datasets
 Datasets,Kernels
 
 - ~~When create a new kernel/dataset, fill with username (and not with "username" placeholder)~~. Possibility to manually configure username
-- Add actions (right mouse button) directly at \*-metadata.json files in files view.
+- ~~Add actions (right mouse button) directly at \*-metadata.json files in files view.~~
 
 Internal
 
 - Use http request instead of KaggleCLI interface.
 - [x] ~~Update CI/CD github actions. Run release triggered by main when version is updated and after ci.yml.~~
+
+Improvements (probabily) limited by using CLI
+
+Kernels
+
+- Kernel open page not opening current running page. Opening last successful run.
+- Output while running not correct. Check parcial log.
+- Get all current running kernels from user, and different versions from same kernel
+- List all kernels versions runs. Create commands for each: check status, download outputs...
+
+Datasets
+
+- When update dataset fail, fallback to create
