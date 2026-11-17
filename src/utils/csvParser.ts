@@ -1,3 +1,18 @@
+const KNOWN_HEADERS = new Set([
+  "ref",
+  "id",
+  "name",
+  "title",
+  "teamid",
+  "teamname",
+  "url",
+  "filename",
+  "totalbytes",
+  "size",
+  "author",
+  "deadline",
+]);
+
 export function parseCsv(csvString: string): Record<string, string>[] {
   if (!csvString || !csvString.trim()) return [];
 
@@ -5,18 +20,33 @@ export function parseCsv(csvString: string): Record<string, string>[] {
     .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
     .replace(/^\uFEFF/, "")
     .trim();
+
   const rawLines = clean.split(/\r?\n/);
+
   const headerLineIndex = rawLines.findIndex((line) => {
-    const l = line.toLowerCase();
-    return (
-      l.includes(",") &&
-      (l.includes("teamid") ||
-        l.includes("teamname") ||
-        l.includes("ref") ||
-        l.includes("title") ||
-        l.includes("name") ||
-        l.includes("id"))
+    const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
+
+    // Ignore CLI warnings, errors, and pagination token banners
+    if (
+      !lower.includes(",") ||
+      lower.startsWith("warning") ||
+      lower.startsWith("userwarning") ||
+      lower.startsWith("deprecationwarning") ||
+      lower.startsWith("next page token")
+    ) {
+      return false;
+    }
+
+    // Split into column tokens and verify at least one exact header match
+    const cols = lower.split(",").map((c) =>
+      c
+        .trim()
+        .replace(/^"|"$/g, "")
+        .replace(/[^a-z0-9]/g, ""),
     );
+
+    return cols.some((col) => KNOWN_HEADERS.has(col));
   });
 
   if (headerLineIndex !== -1) {

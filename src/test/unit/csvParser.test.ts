@@ -33,4 +33,19 @@ suite("Unit Test: KaggleCli CSV Parser", () => {
     const records = parseCsv("");
     assert.deepStrictEqual(records, []);
   });
+
+  test("should ignore Kaggle CLI outdated version warning containing commas and 'consider'", () => {
+    const csv = [
+      "Warning: Looks like you're using an outdated API Version, please consider updating (server 1.7.4.2 / client 1.6.17)",
+      "ref,title,author,lastRunTime,totalVotes",
+      "rnascunha/my-kernel,My Awesome Kernel,Rafael Cunha,2026-11-15 10:00:00,5",
+    ].join("\n");
+
+    const records = parseCsv(csv);
+
+    assert.strictEqual(records.length, 1);
+    assert.strictEqual(records[0].ref, "rnascunha/my-kernel");
+    assert.strictEqual(records[0].title, "My Awesome Kernel");
+    assert.strictEqual(records[0].author, "Rafael Cunha");
+  });
 });

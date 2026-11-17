@@ -288,25 +288,19 @@ export class CompetitionService {
     let records: Record<string, string>[] = [];
 
     try {
-      // Query specifically for competitions the user has entered
       const raw = await KaggleCliService.execute([
         "competitions",
         "list",
         "--group",
         "entered",
-        "--page-size",
-        "100",
         "--csv",
       ]);
       records = KaggleCliService.parseCsv(raw);
     } catch {
-      // Fallback in case CLI version lacks --group support
       try {
         const raw = await KaggleCliService.execute([
           "competitions",
           "list",
-          "--page-size",
-          "100",
           "--csv",
         ]);
         records = KaggleCliService.parseCsv(raw).filter((r) =>
@@ -327,7 +321,6 @@ export class CompetitionService {
       }
     }
 
-    // Active competitions at the top (sorted by urgency), then closed ones
     return joinedList.sort(this.sortCompetitions);
   }
 
@@ -337,7 +330,7 @@ export class CompetitionService {
    */
   public static async getCompetitionsPage(
     page: number,
-    pageSize: number = 20,
+    _pageSize: number = 20,
   ): Promise<CompetitionDetails[]> {
     const raw = await KaggleCliService.execute([
       "competitions",
@@ -346,8 +339,6 @@ export class CompetitionService {
       "recentlyCreated",
       "--page",
       page.toString(),
-      "--page-size",
-      pageSize.toString(),
       "--csv",
     ]);
 
@@ -360,7 +351,6 @@ export class CompetitionService {
         r.userhasentered || r.hasentered,
       );
 
-      // Enforce strict separation: do not duplicate entered competitions here
       if (userEntered) continue;
 
       const details = this.parseRecordToDetails(r, now, false);
@@ -369,7 +359,6 @@ export class CompetitionService {
       }
     }
 
-    // Active competitions at the top
     return unenteredList.sort(this.sortCompetitions);
   }
 

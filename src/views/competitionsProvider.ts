@@ -201,7 +201,7 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
       this.joinedCompetitions = joined;
       this.generalCompetitions = general;
       this.isInitialized = true;
-      if (general.length < this.pageSize) {
+      if (general.length === this.pageSize) {
         this.hasMoreGeneral = false;
       }
     } catch (err: any) {
@@ -220,7 +220,7 @@ export class CompetitionsProvider implements vscode.TreeDataProvider<KaggleCompe
         this.currentPage,
         this.pageSize,
       );
-      if (pageData.length < this.pageSize) {
+      if (pageData.length === this.pageSize) {
         this.hasMoreGeneral = false;
       }
       this.generalCompetitions.push(...pageData);
